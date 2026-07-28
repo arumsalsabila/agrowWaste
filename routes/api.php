@@ -45,6 +45,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('orders')->group(function () {
             Route::post('/', [\App\Http\Controllers\Api\OrderController::class, 'store']); // Buat pesanan (Pembeli)
             Route::get('/', [\App\Http\Controllers\Api\OrderController::class, 'index']); // Riwayat pesanan
+            Route::get('/{id}', [\App\Http\Controllers\Api\OrderController::class, 'show']); // Detail/lacak pesanan
             Route::put('/{id}/status', [\App\Http\Controllers\Api\OrderController::class, 'updateStatus']); // Ubah status pesanan
             Route::post('/checkout', [\App\Http\Controllers\Api\OrderController::class, 'checkout']); // Checkout
 
@@ -77,6 +78,7 @@ Route::prefix('v1')->group(function () {
             Route::put('/users/{id}/suspend', [\App\Http\Controllers\Api\AdminController::class, 'suspendUser']);
             Route::get('/shipments', [\App\Http\Controllers\Api\AdminController::class, 'getShipments']);
             Route::get('/couriers', [\App\Http\Controllers\Api\AdminController::class, 'getCouriers']);
+            Route::post('/couriers', [\App\Http\Controllers\Api\AdminController::class, 'createCourier']);
             Route::post('/shipments/assign', [\App\Http\Controllers\Api\AdminController::class, 'assignCourier']);
             Route::get('/analytics', [\App\Http\Controllers\Api\AdminController::class, 'getAnalytics']);
         });

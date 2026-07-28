@@ -16,8 +16,7 @@ class UpdateShipmentStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Status wajib sesuai urutan spesifikasi
-            'status'         => ['required', 'string', 'in:dijadwalkan,dalam_perjalanan,terkirim'],
+            'status'         => ['required', 'string', 'in:dijadwalkan,dalam_perjalanan,sedang_berjalan,terkirim,selesai,dikirim'],
             'tracking_notes' => ['nullable', 'string', 'max:500'],
         ];
     }

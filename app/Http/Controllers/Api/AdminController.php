@@ -176,4 +176,32 @@ class AdminController extends Controller
             ]
         ]);
     }
+
+    /**
+     * Membuat akun kurir baru khusus oleh Admin
+     */
+    public function createCourier(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|string|email|max:255|unique:users,email',
+            'phone'    => 'nullable|string|max:20',
+            'password' => 'required|string|min:8',
+        ]);
+
+        $authService = app(\App\Services\AuthService::class);
+        $user = $authService->registerUser([
+            'name'     => $request->name,
+            'email'    => $request->email,
+            'phone'    => $request->phone,
+            'password' => $request->password,
+            'role'     => 'logistik',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Akun kurir berhasil dibuat.',
+            'data'    => $user->load('logistikProfile'),
+        ], 201);
+    }
 }

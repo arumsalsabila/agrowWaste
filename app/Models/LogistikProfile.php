@@ -16,6 +16,12 @@ class LogistikProfile extends Model
         'user_id',
         'company_name',
         'vehicle_plate',
+        'lat',
+        'lng',
+        'alamat_posisi',
+        'kecamatan',
+        'kabupaten',
+        'provinsi',
     ];
 
     public function user(): BelongsTo

@@ -31,12 +31,6 @@ class AgroWasteSeeder extends Seeder
             'slug' => 'limbah-cair'
         ]);
         
-        $kategoriPakan = Category::create([
-            'id' => Str::uuid()->toString(), 
-            'name' => 'sisa_pakan',
-            'slug' => 'sisa-pakan'
-        ]);
-        
         $kategoriOlahan = Category::create([
             'id' => Str::uuid()->toString(), 
             'name' => 'limbah_olahan',

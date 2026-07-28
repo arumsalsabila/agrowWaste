@@ -57,4 +57,10 @@ class Order extends Model
     {
         return $this->hasMany(Review::class);
     }
+
+    /** Pengiriman logistik untuk pesanan ini */
+    public function shipment(): HasOne
+    {
+        return $this->hasOne(Shipment::class, 'order_id');
+    }
 }

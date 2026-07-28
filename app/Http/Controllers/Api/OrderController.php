@@ -53,7 +53,7 @@ class OrderController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
             }
 
-            $query = \App\Models\Order::with(['items.product', 'product', 'payment.proof', 'reviews']);
+            $query = \App\Models\Order::with(['items.product', 'product', 'payment.proof', 'reviews', 'shipment']);
 
             if ($user->role === 'pembeli') {
                 $query->where(function ($q) use ($user) {
@@ -81,6 +81,40 @@ class OrderController extends Controller
             return response()->json(['success' => true, 'data' => $orders], 200);
         } catch (\Exception $e) {
             return response()->json(['success' => true, 'data' => []], 200);
+        }
+    }
+
+    /**
+     * Menampilkan detail pesanan tunggal (Untuk tracking / detail)
+     */
+    public function show($id): JsonResponse
+    {
+        try {
+            $order = \App\Models\Order::with([
+                'items.product',
+                'product',
+                'payment.proof',
+                'reviews',
+                'peternak.peternakProfile',
+                'shipment.logistikProfile.user'
+            ])->where('id', $id)->orWhere('order_number', $id)->first();
+
+            if (!$order) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pesanan tidak ditemukan.'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => $order
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil detail pesanan: ' . $e->getMessage()
+            ], 500);
         }
     }
 

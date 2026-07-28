@@ -43,7 +43,16 @@ class ProfileController extends Controller
 
         // 2. Update specific profile table based on role
         if ($user->role === 'logistik' && $user->logistikProfile) {
-            $user->logistikProfile->update($request->only(['company_name', 'vehicle_plate']));
+            $user->logistikProfile->update($request->only([
+                'company_name',
+                'vehicle_plate',
+                'lat',
+                'lng',
+                'alamat_posisi',
+                'kecamatan',
+                'kabupaten',
+                'provinsi'
+            ]));
         } elseif ($user->role === 'peternak' && $user->peternakProfile) {
             $peternakData = $request->only([
                 'nama_kandang',

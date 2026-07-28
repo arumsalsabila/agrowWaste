@@ -39,8 +39,11 @@ class ProductController extends Controller
 
         // 2. Fitur Filter Kategori
         if ($request->has('kategori') && $request->kategori !== '') {
-            $query->whereHas('category', function($q) use ($request) {
-                $q->where('name', $request->kategori); 
+            $kat = $request->kategori;
+            $query->whereHas('category', function($q) use ($kat) {
+                $q->where('name', $kat)
+                  ->orWhere('slug', $kat)
+                  ->orWhere('slug', \Illuminate\Support\Str::slug($kat));
             });
         }
 
@@ -214,7 +217,7 @@ class ProductController extends Controller
      */
     public function adminIndex(\Illuminate\Http\Request $request): JsonResponse
     {
-        $products = Product::with(['category', 'peternakProfile', 'media'])
+        $products = Product::with(['category', 'peternakProfile.user', 'media'])
             ->orderBy('created_at', 'desc')
             ->get();
 

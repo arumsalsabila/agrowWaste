@@ -138,12 +138,32 @@ class OrderService
         $order = \App\Models\Order::findOrFail($orderId);
         
         $order->update([
-            'status' => $status, // 'dikonfirmasi' atau 'ditolak'
+            'status' => $status, // 'dikonfirmasi' atau 'ditolak' atau 'dikirim'
             'rejection_reason' => $reason
         ]);
 
-        $type = $status === 'dikonfirmasi' ? 'ORDER_DIKONFIRMASI' : 'ORDER_DITOLAK';
-        $msg = $status === 'dikonfirmasi' ? 'Hore! Pesananmu sedang diproses oleh peternak.' : "Maaf, pesanan ditolak dengan alasan: {$reason}";
+        // Jika pengiriman logistik & status dikonfirmasi/dikirim, hubungkan otomatis ke kurir
+        if (($status === 'dikonfirmasi' || $status === 'dikirim') && $order->metode_pengiriman === 'logistik') {
+            $shipment = \App\Models\Shipment::where('order_id', $order->id)->first();
+            if (!$shipment) {
+                $courierProfile = \App\Models\LogistikProfile::first();
+                if ($courierProfile) {
+                    \App\Models\Shipment::create([
+                        'id' => \Illuminate\Support\Str::uuid()->toString(),
+                        'order_id' => $order->id,
+                        'logistik_profile_id' => $courierProfile->id,
+                        'status' => $status === 'dikirim' ? 'sedang_berjalan' : 'dijadwalkan',
+                    ]);
+                }
+            } else {
+                if ($status === 'dikirim' && $shipment->status === 'dijadwalkan') {
+                    $shipment->update(['status' => 'sedang_berjalan']);
+                }
+            }
+        }
+
+        $type = $status === 'dikonfirmasi' ? 'ORDER_DIKONFIRMASI' : ($status === 'dikirim' ? 'PENGIRIMAN_UPDATE' : 'ORDER_DITOLAK');
+        $msg = $status === 'dikonfirmasi' ? 'Hore! Pesananmu sedang diproses oleh peternak.' : ($status === 'dikirim' ? 'Pesananmu dalam perjalanan pengiriman.' : "Maaf, pesanan ditolak dengan alasan: {$reason}");
         
         app(\App\Services\NotificationService::class)->send($order->user_id, $type, 'Status Pesanan Diperbarui', $msg);
 

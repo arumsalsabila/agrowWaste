@@ -26,6 +26,7 @@ class AuthService
                 'email'    => $data['email'],
                 'password' => Hash::make($data['password']),
                 'role'     => $data['role'],
+                'phone'    => $data['phone'] ?? null,
             ]);
 
             // 2. Buat Profil berdasarkan Role
@@ -42,6 +43,13 @@ class AuthService
                     'id'        => Str::uuid()->toString(),
                     'provinsi'  => 'Belum diisi',
                     'kabupaten' => 'Belum diisi',
+                ]);
+            } elseif ($data['role'] === 'logistik') {
+                $user->logistikProfile()->create([
+                    'id'           => Str::uuid()->toString(),
+                    'company_name' => 'Mitra Logistik ' . $user->name,
+                    'vehicle_type' => 'Motor / Pickup',
+                    'plat_nomor'   => 'N 1234 AG',
                 ]);
             }
 
