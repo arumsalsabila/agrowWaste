@@ -49,9 +49,10 @@ export const Sidebar = ({ mobileOpen = false, onClose }: SidebarProps) => {
       .then((json) => {
         if (json?.success && json?.data) {
           const list = json.data || [];
-          // active = not yet delivered
+          // active = not yet delivered / completed
           const active = list.filter(
-            (s: { status: string }) => s.status !== "terkirim",
+            (s: { status: string }) =>
+              s.status !== "terkirim" && s.status !== "selesai",
           ).length;
           setPendingCount(active);
         }

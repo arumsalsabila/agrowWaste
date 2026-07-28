@@ -4,9 +4,11 @@ import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { Camera, CheckCircle, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { calculateDeliveryCost, calculateDistanceKm } from "@/lib/location";
 
 interface OrderItem {
   id: string;
+  quantity_kg?: string | number;
   product?: {
     name: string;
   };
@@ -22,6 +24,7 @@ interface Shipment {
     order_number: string | null;
     alamat_pengiriman: string | null;
     total_price: string | number;
+    quantity_kg?: string | number;
     user?: {
       name: string;
     };
@@ -54,6 +57,46 @@ function formatRupiah(n: string | number) {
   }).format(Number(n));
 }
 
+function getOrderShippingCost(shipment: Shipment): number {
+  const order = shipment.order;
+  if (!order) return 24500;
+
+  let weightKg = 5;
+  if (order.quantity_kg) {
+    weightKg = Number(order.quantity_kg) || 5;
+  } else if (order.order_items && order.order_items.length > 0) {
+    const sum = order.order_items.reduce(
+      (acc, item) => acc + (Number(item.quantity_kg) || 0),
+      0,
+    );
+    if (sum > 0) weightKg = sum;
+  }
+
+  // Base Origin (Penjual / Peternak Profile Coordinates)
+  let pLat = -7.9839;
+  let pLng = 112.6214;
+  const peternakProfile = order.peternak?.peternak_profile;
+  if (peternakProfile?.lat && peternakProfile?.lng) {
+    pLat = Number(peternakProfile.lat);
+    pLng = Number(peternakProfile.lng);
+  }
+
+  let dLat = pLat - 0.015;
+  let dLng = pLng - 0.025;
+  const alamat = order.alamat_pengiriman || "";
+  const gisMatch = alamat.match(
+    /\[Titik GIS:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)\]/i,
+  );
+  if (gisMatch) {
+    dLat = Number(gisMatch[1]);
+    dLng = Number(gisMatch[2]);
+  }
+
+  const distance = calculateDistanceKm(pLat, pLng, dLat, dLng);
+  const cost = calculateDeliveryCost(distance, weightKg);
+  return cost.deliveryCostRaw;
+}
+
 function formatDate(d: string) {
   return new Intl.DateTimeFormat("id-ID", {
     day: "numeric",
@@ -67,16 +110,22 @@ function formatDate(d: string) {
 function getStatusBadge(status: string) {
   switch (status) {
     case "dijadwalkan":
-      return { label: "Dijadwalkan", cls: "bg-gray-100 text-gray-700" };
-    case "dalam_perjalanan":
       return {
-        label: "Dalam Perjalanan",
-        cls: "bg-orange-100 text-orange-700",
+        label: "Dijadwalkan",
+        cls: "bg-blue-100 text-blue-800 font-semibold border border-blue-200",
       };
+    case "sedang_berjalan":
+    case "dalam_perjalanan":
+    case "dikirim":
+      return {
+        label: "Sedang Berjalan",
+        cls: "bg-amber-100 text-amber-800 font-semibold border border-amber-300",
+      };
+    case "selesai":
     case "terkirim":
       return {
-        label: "Selesai / Terkirim",
-        cls: "bg-green-100 text-green-700",
+        label: "Selesai",
+        cls: "bg-green-100 text-green-800 font-semibold border border-green-300",
       };
     default:
       return { label: status, cls: "bg-[#EAE6E1] text-[#555555]" };
@@ -191,54 +240,68 @@ export default function ShipmentsPage() {
 
   // init/update map when selection changes
   useEffect(() => {
-    if (!leafletLoaded || !selectedShipment) return;
+    if (!leafletLoaded) return;
     const L = window.L;
     if (!L) return;
 
-    // pickup coords — fallback to Bogor
-    let pLat = -6.5971;
-    let pLng = 106.7973;
+    let map = mapInstance;
+    if (!map) {
+      const mapElem = document.getElementById("gis-map");
+      if (!mapElem) return;
+      map = L.map("gis-map").setView([-7.9839, 112.6214], 12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors",
+      }).addTo(map);
+      setMapInstance(map);
+    } else {
+      // Hapus seluruh marker & jalur rute lama sebelum menggambar ulang
+      map.eachLayer((layer: LeafletLayer) => {
+        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+          map?.removeLayer(layer);
+        }
+      });
+    }
+
+    // Jika tidak ada pengiriman yang dipilih / tab kosong, bersihkan titik peta!
+    if (!selectedShipment) {
+      map.setView([-7.9839, 112.6214], 12);
+      return;
+    }
+
+    // Koordinat Penjemputan (Peternak) — Default area Malang
+    let pLat = -7.9839;
+    let pLng = 112.6214;
     const peternakProfile = selectedShipment.order?.peternak?.peternak_profile;
     if (peternakProfile?.lat && peternakProfile?.lng) {
       pLat = Number(peternakProfile.lat);
       pLng = Number(peternakProfile.lng);
     }
 
-    // mock delivery destination: slight offset from pickup
-    const dLat = pLat + 0.015;
-    const dLng = pLng + 0.025;
-
-    let map = mapInstance;
-    if (!map) {
-      map = L.map("gis-map").setView([pLat, pLng], 12);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors",
-      }).addTo(map);
-      setMapInstance(map);
-    } else {
-      // clear stale markers/lines before redrawing
-      const currentMap = map;
-      currentMap.eachLayer((layer: LeafletLayer) => {
-        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-          currentMap.removeLayer(layer);
-        }
-      });
+    // Koordinat Pengiriman (Pembeli) — Ekstrak dari alamat pengiriman jika ada titik GIS
+    let dLat = pLat + 0.015;
+    let dLng = pLng + 0.025;
+    const alamat = selectedShipment.order?.alamat_pengiriman || "";
+    const gisMatch = alamat.match(
+      /\[Titik GIS:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)\]/i,
+    );
+    if (gisMatch) {
+      dLat = Number(gisMatch[1]);
+      dLng = Number(gisMatch[2]);
     }
 
     const pickupMarker = L.marker([pLat, pLng])
       .addTo(map)
       .bindPopup(
-        `<b>Titik Penjemputan (Peternak):</b><br/>${peternakProfile?.nama_peternakan || "Peternak"}`,
-      )
-      .openPopup();
+        `<b>Titik Penjemputan (Peternak):</b><br/>${peternakProfile?.nama_peternakan || selectedShipment.order?.peternak?.name || "Peternak"}`,
+      );
 
     const deliveryMarker = L.marker([dLat, dLng])
       .addTo(map)
       .bindPopup(
-        `<b>Titik Pengiriman (Pembeli):</b><br/>${selectedShipment.order?.alamat_pengiriman || "Alamat Pembeli"}`,
+        `<b>Titik Pengiriman (Pembeli):</b><br/>${selectedShipment.order?.user?.name || "Pembeli"}<br/>${alamat}`,
       );
 
-    const routeLine = L.polyline(
+    L.polyline(
       [
         [pLat, pLng],
         [dLat, dLng],
@@ -251,6 +314,8 @@ export default function ShipmentsPage() {
       },
     ).addTo(map);
 
+    pickupMarker.openPopup();
+
     const bounds = L.latLngBounds([
       [pLat, pLng],
       [dLat, dLng],
@@ -260,11 +325,16 @@ export default function ShipmentsPage() {
 
   const visibleShipments = useMemo(() => {
     return shipments.filter((s) => {
-      if (activeTab === "Sedang Berjalan" && s.status !== "dalam_perjalanan")
-        return false;
-      if (activeTab === "Selesai" && s.status !== "terkirim") return false;
-      if (activeTab === "Dijadwalkan" && s.status !== "dijadwalkan")
-        return false;
+      const isSedangBerjalan =
+        s.status === "sedang_berjalan" ||
+        s.status === "dalam_perjalanan" ||
+        s.status === "dikirim";
+      const isSelesai = s.status === "selesai" || s.status === "terkirim";
+      const isDijadwalkan = s.status === "dijadwalkan";
+
+      if (activeTab === "Sedang Berjalan" && !isSedangBerjalan) return false;
+      if (activeTab === "Selesai" && !isSelesai) return false;
+      if (activeTab === "Dijadwalkan" && !isDijadwalkan) return false;
 
       const num = s.order?.order_number || s.id;
       const dest = s.order?.alamat_pengiriman || "";
@@ -275,15 +345,41 @@ export default function ShipmentsPage() {
     });
   }, [shipments, activeTab, search]);
 
-  const countByStatus = (status: string) => {
-    return shipments.filter((s) => s.status === status).length;
+  // Otomatis sinkronkan selectedShipment dengan daftar yang sedang aktif/tampil di tab
+  useEffect(() => {
+    if (visibleShipments.length === 0) {
+      setSelectedShipment(null);
+    } else if (
+      !selectedShipment ||
+      !visibleShipments.some((s) => s.id === selectedShipment.id)
+    ) {
+      setSelectedShipment(visibleShipments[0]);
+    }
+  }, [visibleShipments, selectedShipment]);
+
+  const countByMatcher = (matcher: (status: string) => boolean) => {
+    return shipments.filter((s) => matcher(s.status)).length;
   };
 
   const tabs = [
     { label: "Semua", count: shipments.length },
-    { label: "Dijadwalkan", count: countByStatus("dijadwalkan") },
-    { label: "Sedang Berjalan", count: countByStatus("dalam_perjalanan") },
-    { label: "Selesai", count: countByStatus("terkirim") },
+    {
+      label: "Dijadwalkan",
+      count: countByMatcher((st) => st === "dijadwalkan"),
+    },
+    {
+      label: "Sedang Berjalan",
+      count: countByMatcher(
+        (st) =>
+          st === "sedang_berjalan" ||
+          st === "dalam_perjalanan" ||
+          st === "dikirim",
+      ),
+    },
+    {
+      label: "Selesai",
+      count: countByMatcher((st) => st === "selesai" || st === "terkirim"),
+    },
   ];
 
   const handleUpdateStatus = async (
@@ -321,7 +417,7 @@ export default function ShipmentsPage() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
+    <div className="space-y-8 pb-20">
       <div>
         <h2 className="text-3xl font-bold tracking-tight text-courier-textprimary mb-1">
           Daftar Pengiriman
@@ -531,7 +627,7 @@ export default function ShipmentsPage() {
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-courier-warmbg/40 p-4 rounded-xl border border-courier-hairline/60">
                             <div>
                               <span className="text-[10px] font-bold text-courier-textsecondary uppercase tracking-wider block mb-0.5">
-                                Status Pembayaran Ongkir (Rp 24.500)
+                                Status Pembayaran Ongkir ({formatRupiah(getOrderShippingCost(shipment))})
                               </span>
                               <div className="flex items-center gap-2 mt-1">
                                 <span
@@ -693,7 +789,7 @@ export default function ShipmentsPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            openStatusConfirm(shipment.id, "dalam_perjalanan");
+                            openStatusConfirm(shipment.id, "sedang_berjalan");
                           }}
                           disabled={updatingId === shipment.id}
                           className="px-6 py-2.5 bg-courier-primary hover:bg-green-800 text-white rounded-xl text-sm font-bold transition-colors shadow-md shadow-courier-primary/20"
@@ -701,11 +797,13 @@ export default function ShipmentsPage() {
                           Mulai Pengiriman
                         </button>
                       )}
-                      {shipment.status === "dalam_perjalanan" && (
+                      {(shipment.status === "sedang_berjalan" ||
+                        shipment.status === "dalam_perjalanan" ||
+                        shipment.status === "dikirim") && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            openStatusConfirm(shipment.id, "terkirim");
+                            openStatusConfirm(shipment.id, "selesai");
                           }}
                           disabled={updatingId === shipment.id}
                           className="px-6 py-2.5 bg-courier-primary hover:bg-green-800 text-white rounded-xl text-sm font-bold transition-colors shadow-md shadow-courier-primary/20"
@@ -713,7 +811,8 @@ export default function ShipmentsPage() {
                           Konfirmasi Sampai Tujuan
                         </button>
                       )}
-                      {shipment.status === "terkirim" && (
+                      {(shipment.status === "selesai" ||
+                        shipment.status === "terkirim") && (
                         <span className="text-xs text-seller-semgreen font-bold flex items-center gap-1">
                           ✓ Pengiriman Selesai
                         </span>
@@ -798,13 +897,14 @@ export default function ShipmentsPage() {
       {/* Modal Catatan & Konfirmasi Status */}
       {showNotesModal && pendingStatusUpdate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-courier-surfacewhite w-full max-w-sm rounded-2xl border border-courier-hairline overflow-hidden p-6 text-center space-y-4 animate-fade-in shadow-xl">
+          <div className="bg-courier-surfacewhite w-full max-w-sm rounded-3xl border border-courier-hairline overflow-hidden p-6 text-center space-y-4 animate-fade-in shadow-xl">
             <h3 className="text-lg font-bold text-courier-textprimary">
-              {pendingStatusUpdate.status === "dalam_perjalanan"
+              {pendingStatusUpdate.status === "sedang_berjalan" ||
+              pendingStatusUpdate.status === "dalam_perjalanan"
                 ? "Mulai Pengantaran"
                 : "Pengantaran Selesai"}
             </h3>
-            <p className="text-xs text-courier-textsecondary">
+            <p className="text-xs text-courier-textsecondary leading-relaxed">
               Beri catatan pelacakan tambahan (misal: &quot;Barang sudah dimuat
               di pickup&quot; atau &quot;Diterima oleh Bpk. Ahmad di
               kebun&quot;).
@@ -814,16 +914,16 @@ export default function ShipmentsPage() {
               onChange={(e) => setTrackingNotes(e.target.value)}
               placeholder="Catatan tambahan (opsional)..."
               rows={3}
-              className="w-full px-3 py-2 bg-courier-warmbg border border-courier-hairline rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-courier-primary resize-none text-courier-textprimary"
+              className="w-full px-3.5 py-2.5 bg-courier-warmbg border border-courier-hairline rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-courier-primary resize-none text-courier-textprimary"
             />
-            <div className="flex gap-3 justify-end pt-2">
+            <div className="flex gap-3 justify-center pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setShowNotesModal(false);
                   setPendingStatusUpdate(null);
                 }}
-                className="px-4 py-2 text-xs font-bold text-courier-textsecondary hover:text-courier-textprimary transition-colors"
+                className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors"
               >
                 Batal
               </button>
@@ -836,9 +936,10 @@ export default function ShipmentsPage() {
                     trackingNotes,
                   )
                 }
-                className="px-5 py-2 bg-courier-primary hover:bg-green-800 text-white rounded-lg text-xs font-bold transition-colors"
+                disabled={updatingId === pendingStatusUpdate.id}
+                className="flex-1 px-4 py-2.5 bg-courier-primary hover:bg-green-800 text-white rounded-xl text-xs font-bold transition-colors shadow-md shadow-courier-primary/20 disabled:opacity-50"
               >
-                Konfirmasi
+                {updatingId === pendingStatusUpdate.id ? "Memproses..." : "Konfirmasi"}
               </button>
             </div>
           </div>

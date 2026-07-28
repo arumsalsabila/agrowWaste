@@ -231,7 +231,7 @@ export default function LandingPage() {
               className="text-land-muted text-lg leading-relaxed max-w-lg mb-12 hero-fade-up"
               style={{ animationDelay: "220ms" } as React.CSSProperties}
             >
-              Hubungkan sisa pakan, kotoran ternak, dan produk kandangmu dengan
+              Hubungkan kotoran ternak dan hasil olahan pupukmu dengan
               petani yang butuh pupuk organik berkualitas.
             </p>
 

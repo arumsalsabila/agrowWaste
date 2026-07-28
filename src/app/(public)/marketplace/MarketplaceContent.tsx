@@ -14,6 +14,7 @@ import { requestUserLocation } from "@/lib/location";
 const KATEGORI_OPTIONS = [
   { value: "kotoran_padat", label: "Kotoran Padat" },
   { value: "limbah_cair", label: "Limbah Cair" },
+  { value: "limbah_olahan", label: "Limbah Olahan" },
 ];
 
 const PROVINSI_OPTIONS = [

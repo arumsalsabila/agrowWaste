@@ -15,8 +15,9 @@ import {
   XCircle,
   Leaf,
   AlertCircle,
+  Star,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getProductImageUrl } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
@@ -28,9 +29,11 @@ interface OrderItemProduct {
   jenis_ternak: string;
   provinsi: string;
   kabupaten: string;
+  image_url?: string | null;
 }
 
 interface OrderItemDetail {
+  product_id?: string;
   quantity_kg: string;
   price_per_kg: string;
   product: OrderItemProduct;
@@ -39,6 +42,7 @@ interface OrderItemDetail {
 interface LegacyProduct {
   name: string;
   unit: string;
+  image_url?: string | null;
 }
 
 interface OrderDetail {
@@ -54,6 +58,8 @@ interface OrderDetail {
   rejection_reason?: string | null;
   items?: OrderItemDetail[];
   product?: LegacyProduct | null;
+  shipment?: { status: string } | null;
+  reviews?: any[];
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -257,8 +263,32 @@ export default function DetailPesananContent({ id }: { id: string }) {
     border: statusBorder,
   } = statusMeta(order.status);
   const displayOrderId =
-    order.order_number ?? order.id.slice(0, 8).toUpperCase();
+    order.order_number ||
+    (order.id.startsWith("AGW-")
+      ? order.id
+      : `AGW-${order.id.slice(0, 8).toUpperCase()}`);
   const isPickup = order.metode_pengiriman === "pickup";
+
+  const isDeliveredByCourier =
+    order.shipment?.status === "terkirim" ||
+    order.shipment?.status === "selesai";
+
+  const isPickupReady =
+    order.metode_pengiriman === "pickup" &&
+    (order.status === "dikirim" || order.status === "dikonfirmasi");
+
+  const canConfirmReceipt =
+    order.status !== "selesai" && (isDeliveredByCourier || isPickupReady);
+
+  const isPendingDelivery =
+    order.status !== "selesai" &&
+    !canConfirmReceipt &&
+    (order.status === "dikirim" ||
+      order.status === "dikonfirmasi" ||
+      order.status === "menunggu_konfirmasi" ||
+      order.shipment?.status === "sedang_berjalan" ||
+      order.shipment?.status === "dalam_perjalanan" ||
+      order.shipment?.status === "dijadwalkan");
 
   // Normalise items — support both checkout (items[]) and old (product field)
   const displayItems: Array<{
@@ -267,6 +297,7 @@ export default function DetailPesananContent({ id }: { id: string }) {
     qty: string;
     pricePerKg: string | null;
     subtotal: number;
+    image_url: string | null;
   }> =
     order.items && order.items.length > 0
       ? order.items.map((item) => ({
@@ -275,6 +306,7 @@ export default function DetailPesananContent({ id }: { id: string }) {
           qty: item.quantity_kg,
           pricePerKg: item.price_per_kg,
           subtotal: Number(item.quantity_kg) * Number(item.price_per_kg),
+          image_url: item.product?.image_url ?? null,
         }))
       : order.product
         ? [
@@ -284,6 +316,7 @@ export default function DetailPesananContent({ id }: { id: string }) {
               qty: String(order.quantity_kg ?? "—"),
               pricePerKg: null,
               subtotal: Number(order.total_price),
+              image_url: order.product.image_url ?? null,
             },
           ]
         : [];
@@ -381,9 +414,17 @@ export default function DetailPesananContent({ id }: { id: string }) {
                     key={index}
                     className="flex gap-4 items-start sm:items-center"
                   >
-                    {/* Placeholder gambar produk */}
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-[16px] bg-[#F0F5F1] shrink-0 border border-[#E8E0D5] flex items-center justify-center">
-                      <Leaf className="w-7 h-7 sm:w-8 sm:h-8 text-[#009A44]/20" />
+                    {/* Gambar produk */}
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-[16px] bg-[#F0F5F1] shrink-0 border border-[#E8E0D5] overflow-hidden flex items-center justify-center">
+                      {item.image_url ? (
+                        <img
+                          src={getProductImageUrl(item.image_url)}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Leaf className="w-7 h-7 sm:w-8 sm:h-8 text-[#009A44]/20" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-land-ink text-sm sm:text-base mb-1 truncate sm:whitespace-normal">
@@ -520,39 +561,80 @@ export default function DetailPesananContent({ id }: { id: string }) {
             </div>
           )}
 
-          <div className="flex justify-end gap-4 mt-4">
-            {(order.status === "dikonfirmasi" ||
-              order.status === "dikirim") && (
+          <div className="flex justify-end gap-4 mt-4 items-center flex-wrap">
+            {canConfirmReceipt && order.status !== "selesai" && (
               <button
                 type="button"
                 onClick={handleConfirmReceipt}
                 disabled={confirmLoading}
-                className="btn-clay-primary bg-[#009A44] hover:bg-[#008139] px-8 py-4 flex items-center gap-2 text-white disabled:opacity-60"
+                className="btn-clay-primary bg-[#009A44] hover:bg-[#008139] px-8 py-4 flex items-center gap-2 text-white shadow-md shadow-[#009A44]/20 active:scale-95 transition-all disabled:opacity-60"
               >
-                {confirmLoading && (
-                  <svg
-                    className="animate-spin h-4 w-4 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
+                {confirmLoading ? (
+                  <>
+                    <svg
+                      className="animate-spin h-4 w-4 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    Memproses...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-5 h-5" />
+                    Konfirmasi Pesanan Diterima
+                  </>
                 )}
-                Konfirmasi Terima Barang
               </button>
             )}
+
+            {isPendingDelivery && (
+              <button
+                type="button"
+                disabled
+                title="Pesanan belum sampai. Tombol ini akan aktif otomatis ketika kurir mengonfirmasi barang telah sampai di lokasi Anda."
+                className="px-8 py-4 text-sm font-bold rounded-2xl bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed flex items-center gap-2"
+              >
+                <CheckCircle2 className="w-5 h-5 text-gray-300" />
+                Konfirmasi Pesanan Diterima
+              </button>
+            )}
+
+            {(order.status === "dikirim" ||
+              order.shipment ||
+              order.metode_pengiriman === "logistik") && (
+              <Link
+                href={`/pesanan/${order.id}/lacak`}
+                className="btn-clay-primary px-8 py-4 flex items-center gap-2 bg-[#1C231F] hover:bg-[#2C3930] text-white rounded-2xl font-bold shadow-md transition-all"
+              >
+                <MapPin className="w-5 h-5 text-[#4ADE80]" />
+                Lacak Pengiriman Live
+              </Link>
+            )}
+
+            {order.status === "selesai" &&
+              (!order.reviews || order.reviews.length === 0) && (
+                <Link
+                  href={`/marketplace/${order.items?.[0]?.product_id || ""}`}
+                  className="px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Star className="w-5 h-5 fill-white text-white" /> Beri Ulasan
+                </Link>
+              )}
+
             <Link href="/marketplace" className="btn-clay-secondary px-8 py-4">
               Beli Lagi Pesanan Ini
             </Link>

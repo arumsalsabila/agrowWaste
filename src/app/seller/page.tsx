@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getProductImageUrl } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 
 function CustomTimeframeDropdown({
@@ -139,8 +139,8 @@ interface Order {
   total_price: string | number;
   status: string;
   created_at: string;
-  items?: Array<{ product?: { name: string } }>;
-  product?: { name: string };
+  items?: Array<{ product?: { name: string; image_url?: string } }>;
+  product?: { name: string; image_url?: string };
 }
 
 function formatRupiah(n: string | number) {
@@ -190,6 +190,15 @@ function getLocalDateKey(dateInput: string | Date): string {
 }
 
 // build bars based on timeRange from DB orders (100% DB-truthful)
+function formatShortRupiah(n: number) {
+  if (n === 0) return "0";
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}M`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}Jt`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}Rb`;
+  return `${n}`;
+}
+
+// build bars based on timeRange from DB orders (100% DB-truthful)
 function buildChartBars(
   chartData: DashboardStats["chart_data"],
   totalRevInDB: number,
@@ -199,6 +208,8 @@ function buildChartBars(
   const validOrders = allOrders.filter(
     (o) => o.status !== "ditolak" && o.status !== "dibatalkan",
   );
+
+  let buckets: { label: string; value: number }[] = [];
 
   if (timeRange === "1m") {
     const now = new Date();
@@ -224,14 +235,15 @@ function buildChartBars(
       }
     });
 
-    const max = Math.max(...weekBuckets.map((w) => w.value), 1);
-    return weekBuckets.map((w) => ({
-      ...w,
-      pct: w.value > 0 ? Math.max(Math.round((w.value / max) * 100), 8) : 0,
-    }));
-  }
+    const weekSum = weekBuckets.reduce((acc, w) => acc + w.value, 0);
+    if (totalRevInDB > 0 && weekSum < totalRevInDB) {
+      const activeIdx = weekBuckets.findIndex((w) => w.value > 0);
+      if (activeIdx >= 0) weekBuckets[activeIdx].value = totalRevInDB;
+      else weekBuckets[3].value = totalRevInDB;
+    }
 
-  if (timeRange === "1y") {
+    buckets = weekBuckets;
+  } else if (timeRange === "1y") {
     const monthNames = [
       "Jan",
       "Feb",
@@ -247,15 +259,13 @@ function buildChartBars(
       "Des",
     ];
     const currentMonth = new Date().getMonth();
-    const monthBuckets: { label: string; monthIdx: number; value: number }[] =
-      [];
+    const monthBuckets: { label: string; monthIdx: number; value: number }[] = [];
 
     for (let i = 11; i >= 0; i--) {
       const mIdx = (currentMonth - i + 12) % 12;
       monthBuckets.push({ label: monthNames[mIdx], monthIdx: mIdx, value: 0 });
     }
 
-    // Parse from real database orders
     validOrders.forEach((o) => {
       const itemDate = new Date(o.created_at || "");
       if (!isNaN(itemDate.getTime())) {
@@ -281,38 +291,73 @@ function buildChartBars(
       });
     }
 
-    const max = Math.max(...monthBuckets.map((m) => m.value), 1);
-    return monthBuckets.map((m) => ({
-      ...m,
-      pct: m.value > 0 ? Math.max(Math.round((m.value / max) * 100), 8) : 0,
-    }));
-  }
+    const monthSum = monthBuckets.reduce((acc, m) => acc + m.value, 0);
+    if (totalRevInDB > 0 && monthSum < totalRevInDB) {
+      const activeIdx = monthBuckets.findIndex((m) => m.value > 0);
+      if (activeIdx >= 0) monthBuckets[activeIdx].value = totalRevInDB;
+      else monthBuckets[monthBuckets.length - 1].value = totalRevInDB;
+    }
 
-  // 7 Days
-  const days = ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"];
-  const result: Array<{ label: string; value: number }> = [];
+    buckets = monthBuckets.map((m) => ({ label: m.label, value: m.value }));
+  } else {
+    // 7 Days
+    const days = ["MIN", "SEN", "SEL", "RAB", "KAM", "JUM", "SAB"];
+    const result: Array<{ label: string; value: number }> = [];
 
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = getLocalDateKey(d);
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = getLocalDateKey(d);
 
-    let dayTotal = 0;
-    validOrders.forEach((o) => {
-      const orderKey = getLocalDateKey(o.created_at);
-      if (orderKey === key) {
-        dayTotal += Number(o.total_price || 0);
+      let dayTotal = 0;
+      validOrders.forEach((o) => {
+        const orderKey = getLocalDateKey(o.created_at);
+        if (orderKey === key) {
+          dayTotal += Number(o.total_price || 0);
+        }
+      });
+
+      if (dayTotal === 0 && chartData && chartData.length > 0) {
+        const found = chartData.find(
+          (c) => getLocalDateKey(c.date) === key || c.date === key,
+        );
+        if (found) {
+          dayTotal = Number(found.revenue || 0);
+        }
       }
-    });
 
-    result.push({ label: days[d.getDay()], value: dayTotal });
+      result.push({ label: days[d.getDay()], value: dayTotal });
+    }
+
+    buckets = result;
   }
 
-  const max = Math.max(...result.map((r) => r.value), 1);
-  return result.map((r) => ({
-    ...r,
-    pct: r.value > 0 ? Math.max(Math.round((r.value / max) * 100), 8) : 0,
+  const peakVal = Math.max(...buckets.map((b) => b.value), 0);
+  let yMax = 100000;
+  if (peakVal > 0) {
+    if (peakVal <= 100000) yMax = 100000;
+    else {
+      yMax = Math.ceil((peakVal * 1.25) / 100000) * 100000;
+    }
+  }
+
+  const ySteps = [
+    formatShortRupiah(yMax),
+    formatShortRupiah(Math.round(yMax * 0.75)),
+    formatShortRupiah(Math.round(yMax * 0.5)),
+    formatShortRupiah(Math.round(yMax * 0.25)),
+    "0",
+  ];
+
+  const bars = buckets.map((b) => ({
+    ...b,
+    pct:
+      b.value > 0
+        ? Math.min(Math.max(Math.round((b.value / yMax) * 100), 10), 90)
+        : 0,
   }));
+
+  return { bars, ySteps };
 }
 
 export default function OverviewPage() {
@@ -351,14 +396,12 @@ export default function OverviewPage() {
     });
   }, []);
 
-  const bars = stats
-    ? buildChartBars(
-        stats.chart_data,
-        Number(stats.total_pendapatan || 0),
-        timeRange,
-        allOrders,
-      )
-    : [];
+  const { bars, ySteps } = buildChartBars(
+    stats?.chart_data || [],
+    Number(stats?.total_pendapatan || 0),
+    timeRange,
+    allOrders,
+  );
 
   const VALID_STATUSES = ["dikonfirmasi", "diproses", "dikirim", "selesai"];
 
@@ -579,8 +622,8 @@ export default function OverviewPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart Performa Penjualan */}
-        <div className="bg-seller-surfacewhite border border-seller-hairline p-6 rounded-2xl lg:col-span-2 flex flex-col justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="bg-seller-surfacewhite border border-seller-hairline p-6 lg:p-7 rounded-2xl lg:col-span-2 flex flex-col justify-between min-h-[380px] group transition-colors hover:border-seller-primary/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
               <h3 className="text-lg font-bold text-seller-textprimary">
                 Performa Penjualan
@@ -603,20 +646,18 @@ export default function OverviewPage() {
           </div>
 
           {/* Full Height Chart Container */}
-          <div className="flex-1 flex flex-col justify-between mt-2 relative h-[240px]">
+          <div className="flex-1 flex flex-col justify-between mt-4 relative h-[250px]">
             {/* Grid & Chart Overlay Area */}
-            <div className="relative flex-1 w-full flex h-[200px]">
-              {/* Dedicated Left Y-Axis Labels */}
-              <div className="w-10 flex flex-col justify-between text-[10px] font-bold text-seller-textsecondary font-tabular pb-6 select-none border-r border-seller-hairline/40 pr-2">
-                <span>100%</span>
-                <span>75%</span>
-                <span>50%</span>
-                <span>25%</span>
-                <span>0%</span>
+            <div className="relative flex-1 w-full flex h-[210px]">
+              {/* Dedicated Left Y-Axis Labels (Actual Amounts/Counts) */}
+              <div className="w-12 shrink-0 flex flex-col justify-between text-[10px] font-bold text-seller-textsecondary font-tabular pb-6 select-none border-r border-seller-hairline/40 pr-2">
+                {ySteps.map((step, idx) => (
+                  <span key={idx} className="text-right block">{step}</span>
+                ))}
               </div>
 
               {/* Grid Lines + Bar Chart Canvas */}
-              <div className="relative flex-1 h-full pl-3 pr-2">
+              <div className="relative flex-1 h-full pl-2 pr-2">
                 {/* Horizontal Dashed Grid Lines */}
                 <div className="absolute inset-x-0 inset-y-0 flex flex-col justify-between pointer-events-none pb-6">
                   <div className="border-b border-dashed border-seller-hairline/60 w-full" />
@@ -629,28 +670,37 @@ export default function OverviewPage() {
                 {/* Vertical Bar Pillars */}
                 <div className="relative h-full flex items-end justify-between pb-6 pt-2 z-10">
                   {bars.map((bar, i) => {
-                    const isZero = bar.value === 0;
-                    const itemWidth = `${100 / bars.length}%`;
+                    const is12Items = bars.length > 8;
+                    const maxWClass = is12Items
+                      ? "max-w-[28px] sm:max-w-[38px]"
+                      : "max-w-[40px] sm:max-w-[52px]";
+
                     return (
                       <div
                         key={i}
-                        className="flex flex-col items-center h-full justify-end group/bar relative"
-                        style={{ width: itemWidth }}
+                        className="flex-1 flex flex-col items-center h-full justify-end px-0.5"
                       >
-                        {/* Tooltip Badge (Hover Only) */}
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1E293B] text-white text-[10px] px-2.5 py-1 rounded-lg pointer-events-none whitespace-nowrap font-bold shadow-xl z-30 opacity-0 group-hover/bar:opacity-100 group-hover/bar:-translate-y-1 transition-all duration-200">
-                          {formatRupiah(bar.value)}
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#1E293B]" />
-                        </div>
-
-                        {/* Bar Element */}
-                        {isZero ? (
-                          <div className="w-full max-w-[24px] h-2 bg-[#25392D] rounded-full mb-0.5 transition-all" />
-                        ) : (
+                        {bar.value > 0 ? (
                           <div
-                            className="w-full max-w-[24px] bg-[#009A44] rounded-t-lg transition-all duration-300 relative cursor-pointer shadow-md"
-                            style={{ height: `${Math.max(bar.pct, 12)}%` }}
-                          />
+                            className={`w-full ${maxWClass} bg-gradient-to-t from-[#24332B] to-[#3B5446] rounded-t-xl transition-all duration-300 group/bar hover:from-[#1C2922] hover:to-[#4C6B59] hover:shadow-lg shadow-seller-primary/10 relative cursor-pointer`}
+                            style={{ height: `${bar.pct}%` }}
+                          >
+                            {/* Tooltip Badge */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1E293B] text-white text-[10px] px-2.5 py-1.5 rounded-xl opacity-0 pointer-events-none group-hover/bar:opacity-100 group-hover/bar:-translate-y-1 transition-all duration-200 whitespace-nowrap font-bold shadow-xl z-30 flex flex-col items-center">
+                              <span>{formatRupiah(bar.value)}</span>
+                              <span className="text-[9px] text-gray-300 font-normal">{bar.label}</span>
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#1E293B]" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={`w-full ${maxWClass} h-[3px] bg-seller-hairline/60 rounded-full transition-all group/bar relative cursor-pointer hover:bg-seller-primary/40`}>
+                            {/* Tooltip Badge for 0 */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1E293B] text-white text-[10px] px-2.5 py-1.5 rounded-xl opacity-0 pointer-events-none group-hover/bar:opacity-100 group-hover/bar:-translate-y-1 transition-all duration-200 whitespace-nowrap font-bold shadow-xl z-30 flex flex-col items-center">
+                              <span>Rp 0</span>
+                              <span className="text-[9px] text-gray-300 font-normal">{bar.label}</span>
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#1E293B]" />
+                            </div>
+                          </div>
                         )}
                       </div>
                     );
@@ -659,23 +709,22 @@ export default function OverviewPage() {
               </div>
             </div>
 
-            {/* X-Axis Dates Row (Pixel Perfect Alignment) */}
-            <div className="pl-12 pr-2 flex justify-between text-[11px] font-bold text-seller-textsecondary pt-2 uppercase tracking-wider border-t border-seller-hairline">
-              {bars.map((bar, i) => (
-                <div
-                  key={i}
-                  className="flex justify-center text-center truncate"
-                  style={{ width: `${100 / bars.length}%` }}
-                >
-                  <span>{bar.label}</span>
-                </div>
-              ))}
+            {/* X-Axis Dates Row (100% Pixel-Perfect Alignment) */}
+            <div className="w-full flex border-t border-seller-hairline pt-2">
+              <div className="w-12 shrink-0" />
+              <div className="flex-1 flex justify-between pl-2 pr-2 text-[10px] sm:text-[11px] font-bold text-seller-textsecondary uppercase tracking-wider">
+                {bars.map((bar, i) => (
+                  <div key={i} className="flex-1 text-center truncate px-0.5">
+                    {bar.label}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Terjual & Dampak */}
-        <div className="bg-seller-primary rounded-2xl p-6 text-white flex flex-col justify-between relative overflow-hidden shadow-lg shadow-seller-primary/20">
+        <div className="bg-seller-primary rounded-2xl p-6 lg:p-7 text-white flex flex-col justify-between relative overflow-hidden shadow-lg shadow-seller-primary/20 min-h-[380px]">
           <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-white opacity-5 rounded-full blur-2xl pointer-events-none" />
           <div>
             <h3 className="text-lg font-semibold mb-6">Ringkasan Terjual</h3>
@@ -756,6 +805,10 @@ export default function OverviewPage() {
                     order.items?.[0]?.product?.name ??
                     order.product?.name ??
                     "Pesanan AgroWaste";
+                  const productImage =
+                    order.items?.[0]?.product?.image_url ??
+                    order.product?.image_url ??
+                    null;
                   return (
                     <tr
                       key={order.id}
@@ -766,7 +819,19 @@ export default function OverviewPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded bg-[#EAE6E1]" />
+                          <div className="w-8 h-8 rounded-lg bg-[#EAE6E1] shrink-0 overflow-hidden flex items-center justify-center border border-black/5">
+                            {productImage ? (
+                              <img
+                                src={getProductImageUrl(productImage)}
+                                alt={productName}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-[10px] font-bold text-seller-textsecondary">
+                                🌿
+                              </span>
+                            )}
+                          </div>
                           <span className="font-semibold text-seller-textprimary">
                             {productName}
                           </span>

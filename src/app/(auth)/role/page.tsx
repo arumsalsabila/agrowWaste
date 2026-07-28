@@ -40,7 +40,7 @@ export default function RoleSelectionPage() {
 
       {/* Role Cards */}
       <div
-        className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl w-full mb-8 md:mb-16 animate-fade-in"
+        className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl w-full mb-8 md:mb-16 animate-fade-in"
         style={{ "--animation-delay": "100ms" } as React.CSSProperties}
       >
         {/* Penjual (Peternak) */}
@@ -115,51 +115,6 @@ export default function RoleSelectionPage() {
           <Link
             href="/register?role=pembeli"
             className="w-full py-3 bg-land-clay hover:bg-land-clay-hover text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 min-h-[44px]"
-          >
-            Pilih & Lanjutkan
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M14 5l7 7m0 0l-7 7m7-7H3"
-              ></path>
-            </svg>
-          </Link>
-        </div>
-
-        {/* Mitra Logistik */}
-        <div className="bg-land-surface border border-land-cream hover:border-land-ink hover:shadow-lg hover:shadow-land-ink/5 rounded-2xl p-6 md:p-8 flex flex-col items-center text-center transition-all duration-300 group">
-          <div className="w-16 h-16 bg-land-warm rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-            <svg
-              className="w-8 h-8 text-land-ink"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-              ></path>
-            </svg>
-          </div>
-          <h3 className="text-lg font-bold text-land-ink font-land-heading mb-3">
-            Mitra Logistik
-          </h3>
-          <p className="text-xs text-land-muted leading-relaxed mb-8 flex-1">
-            Bantu pengiriman pupuk organik ke pembeli, atur rute logistik GIS,
-            dan dapatkan penghasilan secara transparan.
-          </p>
-          <Link
-            href="/register?role=logistik"
-            className="w-full py-3 bg-land-ink hover:bg-land-ink/90 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 min-h-[44px]"
           >
             Pilih & Lanjutkan
             <svg

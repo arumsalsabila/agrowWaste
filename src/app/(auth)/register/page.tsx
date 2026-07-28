@@ -6,9 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { saveAuth, type AuthUser } from "@/lib/auth";
 
-function toApiRole(param: string): "peternak" | "pembeli" | null {
+function toApiRole(param: string): "peternak" | "pembeli" | "logistik" | null {
   if (param === "penjual" || param === "peternak") return "peternak";
   if (param === "pembeli") return "pembeli";
+  if (param === "logistik" || param === "kurir") return "logistik";
   return null;
 }
 
@@ -20,6 +21,7 @@ function RegisterPageContent() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,17 +29,16 @@ function RegisterPageContent() {
   const displayRole =
     roleParam === "penjual"
       ? "Penjual (Peternak)"
-      : roleParam === "logistik"
-        ? "Mitra Logistik"
-        : "Pembeli";
+      : "Pembeli";
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     const apiRole = toApiRole(roleParam);
-    if (!apiRole) {
-      setError("Peran ini belum didukung. Pilih Peternak atau Pembeli.");
+    if (!apiRole || apiRole === "logistik") {
+      setError("Pendaftaran publik hanya untuk Peternak dan Pembeli.");
+      setIsLoading(false);
       return;
     }
 
@@ -56,7 +57,7 @@ function RegisterPageContent() {
     try {
       const res = await apiFetch("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ name, email, password, role: apiRole }),
+        body: JSON.stringify({ name, email, phone, password, role: apiRole }),
       });
 
       const json = await res.json();
@@ -71,7 +72,12 @@ function RegisterPageContent() {
       saveAuth(token, user);
       window.dispatchEvent(new Event("auth-change"));
 
-      const destination = user.role === "peternak" ? "/seller" : "/marketplace";
+      const destination =
+        user.role === "peternak"
+          ? "/seller"
+          : user.role === "logistik"
+            ? "/courier"
+            : "/marketplace";
       router.push(destination);
       router.refresh();
     } catch {
@@ -237,7 +243,10 @@ function RegisterPageContent() {
               </div>
               <input
                 type="tel"
+                required
                 placeholder="0812xxxx"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 className="block w-full rounded-xl border border-land-cream py-3.5 pl-12 pr-4 text-land-ink placeholder:text-land-muted/40 focus:ring-2 focus:ring-land-clay/20 focus:border-land-clay text-sm bg-white shadow-sm transition-all"
               />
             </div>

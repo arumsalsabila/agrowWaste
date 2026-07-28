@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useToast } from "@/components/admin/Toast";
 import { apiFetch } from "@/lib/api";
 import { ListingApprovalHeaderSection } from "./ListingApprovalHeaderSection";
@@ -12,22 +13,46 @@ export interface Listing {
   icon: string;
   seller: string;
   sellerBadge: string;
-  category: "Limbah Padat" | "Limbah Cair";
+  category: string;
   date: string;
   price: string;
   unit: string;
+  imageUrl?: string;
+  description?: string;
+  jenisTernak?: string;
+  stockKg?: number;
+  minOrderKg?: number;
+  kondisi?: string;
+  provinsi?: string;
+  kabupaten?: string;
+  nutrisi?: Record<string, string>;
 }
 
 interface ProductApiItem {
   id: string;
   name: string;
-  category?: { slug?: string };
+  category?: { name?: string; slug?: string };
   jenis_ternak?: string;
-  peternak_profile?: { nama_peternakan?: string; badge?: string };
+  kondisi?: string;
+  nutrisi?: Record<string, string>;
+  stock_kg?: number | string;
+  min_order_kg?: number | string;
+  provinsi?: string;
+  kabupaten?: string;
+  kecamatan?: string;
+  peternak_profile?: {
+    nama_kandang?: string;
+    nama_peternakan?: string;
+    user?: { name?: string };
+    badge?: string;
+  };
   created_at: string;
   price: string | number;
   unit?: string;
   status: string;
+  description?: string;
+  image_url?: string;
+  media?: Array<{ file_path?: string; original_url?: string }>;
 }
 
 const REJECTION_REASONS = [
@@ -39,19 +64,48 @@ const REJECTION_REASONS = [
 ];
 
 function mapProductToListing(p: ProductApiItem): Listing {
+  let catName = "Kotoran Padat";
+  const slug = (p.category?.slug || "").toLowerCase();
+  const catRaw = (p.category?.name || "").toLowerCase();
+
+  if (slug.includes("cair") || catRaw.includes("cair")) {
+    catName = "Limbah Cair";
+  } else if (slug.includes("olahan") || catRaw.includes("olahan")) {
+    catName = "Limbah Olahan";
+  } else if (slug.includes("padat") || catRaw.includes("padat") || catRaw.includes("kotoran")) {
+    catName = "Kotoran Padat";
+  }
+
+  // Extract seller name from nama_kandang -> user.name -> nama_peternakan -> Fallback
+  const sellerName =
+    p.peternak_profile?.nama_kandang ||
+    p.peternak_profile?.user?.name ||
+    p.peternak_profile?.nama_peternakan ||
+    "Peternakan Maju";
+
+  // Extract product image URL
+  let imageUrl = p.image_url || undefined;
+  if (!imageUrl && p.media && p.media.length > 0) {
+    const rawPath = p.media[0].original_url || p.media[0].file_path;
+    if (rawPath) {
+      imageUrl = rawPath.startsWith("http")
+        ? rawPath
+        : `http://localhost:8000/storage/${rawPath}`;
+    }
+  }
+
+  const rawJenis = p.jenis_ternak || "";
+  const formatJenis = rawJenis
+    ? rawJenis.charAt(0).toUpperCase() + rawJenis.slice(1)
+    : undefined;
+
   return {
     id: p.id,
     title: p.name,
-    icon:
-      p.category?.slug === "limbah_cair"
-        ? "liquid"
-        : p.jenis_ternak === "ayam"
-          ? "grain"
-          : "organic",
-    seller: p.peternak_profile?.nama_peternakan ?? "Peternakan",
+    icon: catName === "Limbah Cair" ? "liquid" : "organic",
+    seller: sellerName,
     sellerBadge: p.peternak_profile?.badge?.toUpperCase() || "PETERNAK",
-    category:
-      p.category?.slug === "limbah_cair" ? "Limbah Cair" : "Limbah Padat",
+    category: catName,
     date: new Date(p.created_at).toLocaleDateString("id-ID", {
       day: "numeric",
       month: "short",
@@ -59,6 +113,15 @@ function mapProductToListing(p: ProductApiItem): Listing {
     }),
     price: Number(p.price).toLocaleString("id-ID"),
     unit: p.unit ?? "kg",
+    imageUrl,
+    description: p.description || "Tidak ada deskripsi tambahan.",
+    jenisTernak: formatJenis,
+    stockKg: p.stock_kg ? Number(p.stock_kg) : undefined,
+    minOrderKg: p.min_order_kg ? Number(p.min_order_kg) : undefined,
+    kondisi: p.kondisi || undefined,
+    provinsi: p.provinsi || undefined,
+    kabupaten: p.kabupaten || undefined,
+    nutrisi: p.nutrisi || undefined,
   };
 }
 
@@ -112,11 +175,11 @@ export const AdminListing = () => {
       const json = await res.json();
       if (res.ok && json.success) {
         setListings((prev) => prev.filter((l) => l.id !== listing.id));
-        setApprovedToday((n) => n + 1);
         showToast(
           `"${listing.title}" disetujui dan dipublikasikan ke pasar.`,
           "success",
         );
+        fetchListings();
       } else {
         showToast(json.message ?? "Gagal menyetujui listing.", "error");
       }
@@ -141,8 +204,8 @@ export const AdminListing = () => {
       const json = await res.json();
       if (res.ok && json.success) {
         setListings((prev) => prev.filter((l) => l.id !== listing.id));
-        setRejectedWeekly((n) => n + 1);
         showToast(`"${listing.title}" ditolak: ${rejectionReason}.`, "error");
+        fetchListings();
       } else {
         showToast(json.message ?? "Gagal menolak listing.", "error");
       }
@@ -158,6 +221,12 @@ export const AdminListing = () => {
     setPendingAction(null);
     setRejectionReason(REJECTION_REASONS[0]);
   };
+
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
     <>
@@ -177,14 +246,14 @@ export const AdminListing = () => {
       </div>
 
       {/* Confirmation modal */}
-      {pendingAction && (
+      {isMounted && pendingAction && createPortal(
         <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4"
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 animate-fade-in"
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
         >
-          <div className="bg-admin-surfacewhite w-full max-w-sm rounded-2xl border border-admin-hairline overflow-hidden shadow-xl animate-fade-in">
+          <div className="bg-admin-surfacewhite w-full max-w-sm rounded-3xl border border-admin-hairline overflow-hidden shadow-2xl animate-fade-in">
             {pendingAction.type === "approve" ? (
               <div className="p-6 space-y-5">
                 <div className="w-12 h-12 bg-admin-primary/10 text-admin-primary rounded-full flex items-center justify-center mx-auto mb-2">
@@ -282,7 +351,8 @@ export const AdminListing = () => {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

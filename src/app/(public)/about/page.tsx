@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Leaf,
@@ -12,12 +14,35 @@ import {
   Navigation,
 } from "lucide-react";
 import { Marquee } from "@/components/public/Marquee";
+import { apiFetch } from "@/lib/api";
 
-export const metadata = {
-  title: "Tentang Kami | AgroWaste",
-};
+interface ImpactData {
+  total_waste_managed_kg: number;
+  total_co2eq_reduced_kg: number;
+  equivalent_trees: number;
+  active_sellers_count: number;
+  total_transactions: number;
+}
 
 export default function AboutPage() {
+  const [data, setData] = useState<ImpactData | null>(null);
+
+  useEffect(() => {
+    apiFetch("/dashboard/impact")
+      .then((res) => (res.ok ? res.json() : { data: null }))
+      .then((json) => {
+        if (json?.success && json?.data) {
+          setData(json.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const totalWasteKg = data?.total_waste_managed_kg || 0;
+  const wasteText =
+    totalWasteKg >= 1000
+      ? `${(totalWasteKg / 1000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} Ton`
+      : `${totalWasteKg.toLocaleString("id-ID")} Kg`;
   return (
     <div className="flex-1 flex flex-col bg-land-bg">
       {/* Editorial Hero Section with Smooth Fade */}
@@ -306,7 +331,10 @@ export default function AboutPage() {
           <div className="relative z-10">
             <LineChart className="w-16 h-16 text-[#4ADE80] mx-auto mb-8" />
             <h2 className="text-4xl md:text-6xl font-land-heading font-bold text-white mb-8 leading-tight">
-              Lebih dari <span className="text-[#009A44]">12,400 Ton</span>
+              Lebih dari{" "}
+              <span className="text-[#009A44]">
+                {data ? wasteText : "..."}
+              </span>
               <br />
               limbah telah diselamatkan.
             </h2>

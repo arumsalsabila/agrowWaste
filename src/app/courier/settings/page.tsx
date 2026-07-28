@@ -205,6 +205,12 @@ interface ProfileResponse {
       company_name: string | null;
       vehicle_plate: string | null;
       vehicle_type?: string | null;
+      lat?: number | string | null;
+      lng?: number | string | null;
+      alamat_posisi?: string | null;
+      kecamatan?: string | null;
+      kabupaten?: string | null;
+      provinsi?: string | null;
     };
   };
 }
@@ -226,6 +232,34 @@ export default function CourierSettings() {
     "Mobil Pick-up",
   );
   const [avatarUrl, setAvatarUrl] = useState("");
+
+  const [lat, setLat] = useState<string>("");
+  const [lng, setLng] = useState<string>("");
+  const [alamatPosisi, setAlamatPosisi] = useState("");
+  const [kecamatan, setKecamatan] = useState("");
+  const [kabupaten, setKabupaten] = useState("");
+  const [provinsi, setProvinsi] = useState("");
+  const [isDetectingGps, setIsDetectingGps] = useState(false);
+
+  const handleDetectGPS = () => {
+    if (!navigator.geolocation) {
+      alert("Browser Anda tidak mendukung Geolocation.");
+      return;
+    }
+    setIsDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude.toFixed(7));
+        setLng(pos.coords.longitude.toFixed(7));
+        setIsDetectingGps(false);
+      },
+      (err) => {
+        alert("Gagal mendeteksi lokasi GPS: " + err.message);
+        setIsDetectingGps(false);
+      },
+      { enableHighAccuracy: true }
+    );
+  };
 
   const fetchProfile = () => {
     // Load local stored vehicle preference if available
@@ -250,6 +284,12 @@ export default function CourierSettings() {
           if (u.logistik_profile) {
             setCompanyName(u.logistik_profile.company_name || "");
             setVehiclePlate(u.logistik_profile.vehicle_plate || "");
+            setLat(u.logistik_profile.lat ? String(u.logistik_profile.lat) : "");
+            setLng(u.logistik_profile.lng ? String(u.logistik_profile.lng) : "");
+            setAlamatPosisi(u.logistik_profile.alamat_posisi || "");
+            setKecamatan(u.logistik_profile.kecamatan || "");
+            setKabupaten(u.logistik_profile.kabupaten || "");
+            setProvinsi(u.logistik_profile.provinsi || "");
             if (
               u.logistik_profile.vehicle_type === "Motor" ||
               u.logistik_profile.vehicle_type === "Mobil Pick-up"
@@ -303,6 +343,12 @@ export default function CourierSettings() {
         company_name: companyName,
         vehicle_plate: vehiclePlate,
         vehicle_type: vehicleType,
+        lat: lat ? Number(lat) : null,
+        lng: lng ? Number(lng) : null,
+        alamat_posisi: alamatPosisi || null,
+        kecamatan: kecamatan || null,
+        kabupaten: kabupaten || null,
+        provinsi: provinsi || null,
       };
 
       const res = await apiFetch("/profile", {
@@ -348,7 +394,7 @@ export default function CourierSettings() {
 
   return (
     <>
-      <div className="space-y-8 animate-fade-in pb-20">
+      <div className="space-y-8 pb-20">
         {/* Header */}
         <div>
           <h2 className="text-xl font-bold tracking-tight text-courier-primary mb-2">
@@ -595,6 +641,100 @@ export default function CourierSettings() {
                             {formatRupiah(liveShippingSample.deliveryCostRaw)})
                           </span>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location & GPS Section */}
+                <div className="bg-courier-surfacewhite border border-courier-hairline rounded-2xl overflow-hidden shadow-sm">
+                  <div className="bg-courier-warmbg/50 px-6 py-4 border-b border-courier-hairline flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                    <div>
+                      <h3 className="font-bold text-courier-primary text-sm">
+                        Lokasi Presisi Kurir (GIS & GPS)
+                      </h3>
+                      <p className="text-[11px] text-courier-textsecondary">
+                        Digunakan Admin untuk menugaskan kurir terdekat dari lokasi Peternak.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDetectGPS}
+                      disabled={isDetectingGps}
+                      className="px-3.5 py-1.5 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 transition-colors shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {isDetectingGps ? "Mendeteksi..." : "Deteksi GPS Presisi"}
+                    </button>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-bold text-courier-textsecondary mb-2">
+                          Latitude (Garis Lintang)
+                        </label>
+                        <input
+                          type="text"
+                          value={lat}
+                          onChange={(e) => setLat(e.target.value)}
+                          placeholder="-7.9839"
+                          className="w-full px-4 py-2.5 bg-courier-surfacewhite border border-courier-hairline rounded-xl text-sm focus:outline-none focus:border-courier-primary font-tabular"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-courier-textsecondary mb-2">
+                          Longitude (Garis Bujur)
+                        </label>
+                        <input
+                          type="text"
+                          value={lng}
+                          onChange={(e) => setLng(e.target.value)}
+                          placeholder="112.6214"
+                          className="w-full px-4 py-2.5 bg-courier-surfacewhite border border-courier-hairline rounded-xl text-sm focus:outline-none focus:border-courier-primary font-tabular"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                      <div>
+                        <label className="block text-xs font-bold text-courier-textsecondary mb-2">
+                          Kecamatan
+                        </label>
+                        <input
+                          type="text"
+                          value={kecamatan}
+                          onChange={(e) => setKecamatan(e.target.value)}
+                          placeholder="Klojen"
+                          className="w-full px-4 py-2.5 bg-courier-surfacewhite border border-courier-hairline rounded-xl text-sm focus:outline-none focus:border-courier-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-courier-textsecondary mb-2">
+                          Kota / Kabupaten
+                        </label>
+                        <input
+                          type="text"
+                          value={kabupaten}
+                          onChange={(e) => setKabupaten(e.target.value)}
+                          placeholder="Kota Malang"
+                          className="w-full px-4 py-2.5 bg-courier-surfacewhite border border-courier-hairline rounded-xl text-sm focus:outline-none focus:border-courier-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-courier-textsecondary mb-2">
+                          Provinsi
+                        </label>
+                        <input
+                          type="text"
+                          value={provinsi}
+                          onChange={(e) => setProvinsi(e.target.value)}
+                          placeholder="Jawa Timur"
+                          className="w-full px-4 py-2.5 bg-courier-surfacewhite border border-courier-hairline rounded-xl text-sm focus:outline-none focus:border-courier-primary"
+                        />
                       </div>
                     </div>
                   </div>

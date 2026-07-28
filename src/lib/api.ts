@@ -12,7 +12,6 @@ export async function apiFetch(
 
   const headers: Record<string, string> = {
     Accept: "application/json",
-    // FormData: jangan set Content-Type — browser harus menambah boundary sendiri
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
@@ -21,7 +20,11 @@ export async function apiFetch(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  return fetch(`${BASE_URL}${path}`, { ...options, headers });
+  return fetch(`${BASE_URL}${path}`, {
+    cache: "no-store",
+    ...options,
+    headers,
+  });
 }
 
 export function getProductImageUrl(url: string | null | undefined): string {
@@ -30,15 +33,24 @@ export function getProductImageUrl(url: string | null | undefined): string {
     process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1";
   try {
     const origin = new URL(base).origin;
-    if (url.startsWith("http://localhost/storage")) {
-      return url.replace("http://localhost", origin);
-    }
-    if (url.startsWith("/storage")) {
-      return `${origin}${url}`;
+
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      const parsed = new URL(url);
+      if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+        return `${origin}${parsed.pathname}${parsed.search}`;
+      }
+      return url;
     }
 
-    // Default fallback for relative storage paths like payment_proofs/... or media/...
-    return `${origin}/storage/${url.startsWith("/") ? url.slice(1) : url}`;
+    if (url.startsWith("/storage/")) {
+      return `${origin}${url}`;
+    }
+    if (url.startsWith("storage/")) {
+      return `${origin}/${url}`;
+    }
+
+    const cleanPath = url.startsWith("/") ? url.slice(1) : url;
+    return `${origin}/storage/${cleanPath}`;
   } catch (e) {
     // ignore
   }

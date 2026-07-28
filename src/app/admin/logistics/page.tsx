@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/admin/Toast";
@@ -9,10 +9,16 @@ interface Courier {
   id: string;
   company_name: string;
   vehicle_plate: string;
+  lat?: number | string | null;
+  lng?: number | string | null;
+  kecamatan?: string | null;
+  kabupaten?: string | null;
+  provinsi?: string | null;
   user: {
     id: string;
     name: string;
     email: string;
+    phone?: string | null;
   };
 }
 
@@ -47,6 +53,8 @@ interface Order {
     peternak_profile?: {
       nama_peternakan: string;
       kabupaten: string;
+      lat?: number | string | null;
+      lng?: number | string | null;
     };
   };
   items?: OrderItem[];
@@ -59,6 +67,32 @@ interface Shipment {
   status: string;
   tracking_notes?: string;
   logistik_profile?: Courier;
+}
+
+function calculateDistanceKm(
+  lat1?: number | string | null,
+  lng1?: number | string | null,
+  lat2?: number | string | null,
+  lng2?: number | string | null
+): number | null {
+  if (!lat1 || !lng1 || !lat2 || !lng2) return null;
+  const nLat1 = Number(lat1);
+  const nLng1 = Number(lng1);
+  const nLat2 = Number(lat2);
+  const nLng2 = Number(lng2);
+  if (isNaN(nLat1) || isNaN(nLng1) || isNaN(nLat2) || isNaN(nLng2)) return null;
+
+  const R = 6371; // Earth radius in km
+  const dLat = ((nLat2 - nLat1) * Math.PI) / 180;
+  const dLng = ((nLng2 - nLng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((nLat1 * Math.PI) / 180) *
+      Math.cos((nLat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
 }
 
 export default function AdminLogistics() {
@@ -99,9 +133,47 @@ export default function AdminLogistics() {
     fetchData();
   }, []);
 
+  const sortedCouriersForSelectedOrder = useMemo(() => {
+    if (!selectedOrder) return couriers.map((c) => ({ courier: c, distanceKm: null }));
+
+    const sellerLat = selectedOrder.peternak?.peternak_profile?.lat;
+    const sellerLng = selectedOrder.peternak?.peternak_profile?.lng;
+
+    const list = couriers.map((c) => {
+      const dist = calculateDistanceKm(sellerLat, sellerLng, c.lat, c.lng);
+      return {
+        courier: c,
+        distanceKm: dist,
+      };
+    });
+
+    list.sort((a, b) => {
+      if (a.distanceKm === null && b.distanceKm === null) return 0;
+      if (a.distanceKm === null) return 1;
+      if (b.distanceKm === null) return -1;
+      return a.distanceKm - b.distanceKm;
+    });
+
+    return list;
+  }, [couriers, selectedOrder]);
+
   const handleAssignClick = (order: Order) => {
     setSelectedOrder(order);
-    setSelectedCourierId(couriers[0]?.id ?? "");
+    const sellerLat = order.peternak?.peternak_profile?.lat;
+    const sellerLng = order.peternak?.peternak_profile?.lng;
+
+    const list = couriers.map((c) => ({
+      id: c.id,
+      dist: calculateDistanceKm(sellerLat, sellerLng, c.lat, c.lng),
+    }));
+    list.sort((a, b) => {
+      if (a.dist === null && b.dist === null) return 0;
+      if (a.dist === null) return 1;
+      if (b.dist === null) return -1;
+      return a.dist - b.dist;
+    });
+
+    setSelectedCourierId(list[0]?.id ?? couriers[0]?.id ?? "");
     setIsAssignModalOpen(true);
   };
 
@@ -157,6 +229,47 @@ export default function AdminLogistics() {
 
   const tabs = ["Semua", "Sedang Kirim", "Terkirim", "Masalah"];
 
+  const [isCourierModalOpen, setIsCourierModalOpen] = useState(false);
+  const [courierName, setCourierName] = useState("");
+  const [courierEmail, setCourierEmail] = useState("");
+  const [courierPhone, setCourierPhone] = useState("");
+  const [courierPassword, setCourierPassword] = useState("");
+  const [isCreatingCourier, setIsCreatingCourier] = useState(false);
+
+  const handleCreateCourier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreatingCourier(true);
+
+    try {
+      const res = await apiFetch("/admin/couriers", {
+        method: "POST",
+        body: JSON.stringify({
+          name: courierName,
+          email: courierEmail,
+          phone: courierPhone,
+          password: courierPassword,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        showToast("Akun Kurir berhasil dibuat!", "success");
+        setCourierName("");
+        setCourierEmail("");
+        setCourierPhone("");
+        setCourierPassword("");
+        setIsCourierModalOpen(false);
+        fetchData();
+      } else {
+        showToast(json.message || "Gagal membuat akun kurir.", "error");
+      }
+    } catch {
+      showToast("Terjadi kesalahan koneksi saat membuat akun kurir.", "error");
+    } finally {
+      setIsCreatingCourier(false);
+    }
+  };
+
   return (
     <>
       <div className="space-y-8 animate-fade-in pb-10">
@@ -172,11 +285,20 @@ export default function AdminLogistics() {
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setIsCourierModalOpen(true)}
+              className="px-4 py-2.5 bg-admin-primary text-white font-bold text-xs rounded-xl hover:bg-admin-primary/90 flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Buat Akun Kurir
+            </button>
+            <button
               onClick={() => fetchData()}
-              className="px-4 py-2.5 bg-admin-surfacewhite text-admin-textsecondary font-bold text-sm border border-admin-hairline rounded-xl hover:bg-admin-warmbg flex items-center gap-2 transition-colors shadow-sm w-full sm:w-auto justify-center"
+              className="px-4 py-2.5 bg-admin-surfacewhite text-admin-textsecondary font-bold text-xs border border-admin-hairline rounded-xl hover:bg-admin-warmbg flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -548,9 +670,14 @@ export default function AdminLogistics() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-admin-textsecondary mb-1.5">
-                  Pilih Kurir / Perusahaan
-                </label>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-xs font-bold text-admin-textsecondary">
+                    Pilih Kurir (Urut Terdekat dari Penjual)
+                  </label>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 font-extrabold px-2 py-0.5 rounded border border-emerald-200">
+                    Auto GIS Jarak Terdekat
+                  </span>
+                </div>
                 {couriers.length === 0 ? (
                   <div className="p-3 border border-admin-hairline rounded-xl text-xs text-admin-semred bg-red-50">
                     Tidak ada kurir yang aktif. Harap daftarkan mitra logistik
@@ -560,14 +687,22 @@ export default function AdminLogistics() {
                   <select
                     value={selectedCourierId}
                     onChange={(e) => setSelectedCourierId(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-admin-warmbg border border-admin-hairline rounded-xl text-sm text-admin-textprimary focus:outline-none focus:ring-1 focus:ring-admin-primary"
+                    className="w-full px-4 py-2.5 bg-admin-warmbg border border-admin-hairline rounded-xl text-sm text-admin-textprimary focus:outline-none focus:ring-1 focus:ring-admin-primary font-medium"
                   >
-                    {couriers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.company_name ?? c.user.name} (
-                        {c.vehicle_plate ?? "Tanpa Plat"})
-                      </option>
-                    ))}
+                    {sortedCouriersForSelectedOrder.map((item: { courier: Courier; distanceKm: number | null }, idx: number) => {
+                      const c = item.courier;
+                      const isClosest = idx === 0 && item.distanceKm !== null;
+                      const distText =
+                        item.distanceKm !== null
+                          ? `${item.distanceKm} km dari Peternak`
+                          : "Lokasi GPS belum diset";
+                      const label = `${c.company_name ?? c.user.name} (${c.vehicle_plate ?? "Tanpa Plat"}) — ${distText}${isClosest ? " [⭐ TERDEKAT]" : ""}`;
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {label}
+                        </option>
+                      );
+                    })}
                   </select>
                 )}
               </div>
@@ -605,6 +740,104 @@ export default function AdminLogistics() {
                 Konfirmasi Penugasan
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Buat Akun Kurir Baru */}
+      {isCourierModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-admin-hairline">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-admin-textprimary">
+                Buat Akun Kurir Baru
+              </h3>
+              <button
+                onClick={() => setIsCourierModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-admin-textsecondary mb-6 leading-relaxed">
+              Akun kurir ini memiliki hak istimewa khusus untuk menangani pengiriman barang di platform AgroWaste.
+            </p>
+
+            <form onSubmit={handleCreateCourier} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-admin-textprimary uppercase tracking-wider mb-1">
+                  Nama Lengkap Kurir
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Budi Santoso"
+                  value={courierName}
+                  onChange={(e) => setCourierName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-admin-hairline text-xs focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-admin-textprimary uppercase tracking-wider mb-1">
+                  Alamat Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="kurir@agrowaste.id"
+                  value={courierEmail}
+                  onChange={(e) => setCourierEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-admin-hairline text-xs focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-admin-textprimary uppercase tracking-wider mb-1">
+                  Nomor WhatsApp / Telepon
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="081234567890"
+                  value={courierPhone}
+                  onChange={(e) => setCourierPhone(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-admin-hairline text-xs focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-admin-textprimary uppercase tracking-wider mb-1">
+                  Kata Sandi (Password)
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  placeholder="Minimal 8 karakter"
+                  value={courierPassword}
+                  onChange={(e) => setCourierPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-admin-hairline text-xs focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-admin-hairline/60">
+                <button
+                  type="button"
+                  onClick={() => setIsCourierModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-200"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingCourier}
+                  className="px-5 py-2 bg-admin-primary text-white text-xs font-bold rounded-xl hover:bg-admin-primary/90 disabled:opacity-50"
+                >
+                  {isCreatingCourier ? "Membuat..." : "Buat Akun Kurir"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

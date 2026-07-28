@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
 interface User {
@@ -47,12 +48,71 @@ function statusInfo(isSuspended: boolean | number) {
 }
 
 export default function AdminUserManagement() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlRole = searchParams.get("role") || "ALL";
+  const urlSearch = searchParams.get("search") || "";
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("Semua Pengguna");
   const [search, setSearch] = useState("");
   const [suspendingId, setSuspendingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isCourierModalOpen, setIsCourierModalOpen] = useState(false);
+  const [courierName, setCourierName] = useState("");
+  const [courierEmail, setCourierEmail] = useState("");
+  const [courierPhone, setCourierPhone] = useState("");
+  const [courierPassword, setCourierPassword] = useState("");
+  const [isCreatingCourier, setIsCreatingCourier] = useState(false);
+  const [courierSuccess, setCourierSuccess] = useState<string | null>(null);
+
+  const handleCreateCourier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionError(null);
+    setCourierSuccess(null);
+    setIsCreatingCourier(true);
+
+    try {
+      const res = await apiFetch("/admin/couriers", {
+        method: "POST",
+        body: JSON.stringify({
+          name: courierName,
+          email: courierEmail,
+          phone: courierPhone,
+          password: courierPassword,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setActionError(json.message || "Gagal membuat akun kurir.");
+        setIsCreatingCourier(false);
+        return;
+      }
+
+      setCourierSuccess("Akun Kurir berhasil dibuat!");
+      setCourierName("");
+      setCourierEmail("");
+      setCourierPhone("");
+      setCourierPassword("");
+      setIsCourierModalOpen(false);
+      fetchUsers();
+    } catch {
+      setActionError("Terjadi kesalahan koneksi saat membuat akun kurir.");
+    } finally {
+      setIsCreatingCourier(false);
+    }
+  };
+
+  useEffect(() => {
+    if (urlRole === "peternak") setActiveFilter("Peternak");
+    else if (urlRole === "pembeli") setActiveFilter("Pembeli");
+    else if (urlRole === "logistik") setActiveFilter("Logistik");
+    else setActiveFilter("Semua Pengguna");
+
+    setSearch(urlSearch);
+  }, [urlRole, urlSearch]);
 
   const filterMap: Record<string, string> = {
     "Semua Pengguna": "ALL",
@@ -83,20 +143,13 @@ export default function AdminUserManagement() {
       const res = await apiFetch(`/admin/users/${user.id}/suspend`, {
         method: "PUT",
       });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setUsers((prev) =>
-          prev.map((u) =>
-            u.id === user.id ? { ...u, is_suspended: !u.is_suspended } : u,
-          ),
-        );
+      if (res.ok) {
+        fetchUsers();
       } else {
-        setActionError(
-          json.message ?? "Gagal mengubah status suspend pengguna.",
-        );
+        setActionError("Gagal memperbarui status pengguna.");
       }
     } catch {
-      setActionError("Tidak dapat terhubung ke server.");
+      setActionError("Terjadi kesalahan jaringan.");
     } finally {
       setSuspendingId(null);
     }
@@ -128,7 +181,7 @@ export default function AdminUserManagement() {
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-admin-textprimary mb-1">
             Manajemen Pengguna
@@ -137,6 +190,15 @@ export default function AdminUserManagement() {
             Kelola data seluruh pelaku ekosistem AgroWaste.
           </p>
         </div>
+        <button
+          onClick={() => setIsCourierModalOpen(true)}
+          className="px-5 py-2.5 bg-admin-primary text-white text-xs font-bold rounded-xl hover:bg-admin-primary/90 transition-all shadow-sm flex items-center gap-2 self-start sm:self-auto cursor-pointer"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Buat Akun Kurir
+        </button>
       </div>
 
       {actionError && (
@@ -235,7 +297,15 @@ export default function AdminUserManagement() {
             {Object.keys(filterMap).map((filter) => (
               <button
                 key={filter}
-                onClick={() => setActiveFilter(filter)}
+                onClick={() => {
+                  setActiveFilter(filter);
+                  const roleCode = filterMap[filter];
+                  const params = new URLSearchParams();
+                  if (search.trim()) params.set("search", search.trim());
+                  if (roleCode && roleCode !== "ALL") params.set("role", roleCode);
+                  const queryStr = params.toString();
+                  router.push(queryStr ? `/admin/users?${queryStr}` : "/admin/users");
+                }}
                 className={`px-4 py-2 font-bold rounded-lg text-xs transition-all ${
                   activeFilter === filter
                     ? "bg-admin-surfacewhite text-admin-primary shadow-sm"
@@ -401,6 +471,104 @@ export default function AdminUserManagement() {
           </span>
         </div>
       </div>
+
+      {/* Modal Buat Akun Kurir */}
+      {isCourierModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-admin-hairline">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-admin-textprimary">
+                Buat Akun Kurir Baru
+              </h3>
+              <button
+                onClick={() => setIsCourierModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-admin-textsecondary mb-6 leading-relaxed">
+              Akun kurir ini memiliki hak istimewa khusus untuk menangani pengiriman barang di platform AgroWaste.
+            </p>
+
+            <form onSubmit={handleCreateCourier} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-admin-textprimary uppercase tracking-wider mb-1">
+                  Nama Lengkap Kurir
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Budi Santoso"
+                  value={courierName}
+                  onChange={(e) => setCourierName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-admin-hairline text-xs focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-admin-textprimary uppercase tracking-wider mb-1">
+                  Alamat Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="kurir@agrowaste.id"
+                  value={courierEmail}
+                  onChange={(e) => setCourierEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-admin-hairline text-xs focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-admin-textprimary uppercase tracking-wider mb-1">
+                  Nomor WhatsApp / Telepon
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="081234567890"
+                  value={courierPhone}
+                  onChange={(e) => setCourierPhone(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-admin-hairline text-xs focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-admin-textprimary uppercase tracking-wider mb-1">
+                  Kata Sandi (Password)
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  placeholder="Minimal 8 karakter"
+                  value={courierPassword}
+                  onChange={(e) => setCourierPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-admin-hairline text-xs focus:ring-2 focus:ring-admin-primary/20 focus:border-admin-primary outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-admin-hairline/60">
+                <button
+                  type="button"
+                  onClick={() => setIsCourierModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-200"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingCourier}
+                  className="px-5 py-2 bg-admin-primary text-white text-xs font-bold rounded-xl hover:bg-admin-primary/90 disabled:opacity-50"
+                >
+                  {isCreatingCourier ? "Membuat..." : "Buat Akun Kurir"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

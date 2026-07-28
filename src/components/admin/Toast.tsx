@@ -37,7 +37,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="fixed bottom-14 right-6 z-[100] flex flex-col gap-2 pointer-events-none"
+        className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none"
       >
         {toasts.map((toast) => (
           <ToastCard key={toast.id} {...toast} />
@@ -48,22 +48,22 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 }
 
 const dotColors: Record<ToastType, string> = {
-  success: "bg-green-400",
+  success: "bg-emerald-400",
   error: "bg-red-400",
-  info: "bg-blue-400",
+  info: "bg-sky-400",
 };
 
 function ToastCard({ message, type }: ToastItem) {
   return (
     <div
       role="status"
-      className="flex items-center gap-3 px-4 py-3 bg-[#111] rounded-xl shadow-2xl text-white pointer-events-auto max-w-xs"
+      className="flex items-center gap-3 px-5 py-3.5 bg-[#181818]/90 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl text-white pointer-events-auto max-w-md animate-fade-in"
     >
       <span
-        className={`w-2 h-2 rounded-full shrink-0 ${dotColors[type]}`}
+        className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotColors[type]}`}
         aria-hidden="true"
       />
-      <span className="text-xs font-semibold leading-relaxed">{message}</span>
+      <span className="text-xs font-semibold leading-relaxed tracking-wide">{message}</span>
     </div>
   );
 }

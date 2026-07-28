@@ -174,9 +174,10 @@ export default function AdminDashboard() {
 
   const [timeRange, setTimeRange] = useState<"7d" | "1m" | "1y">("7d");
 
-  const chartBars = useMemo(() => {
+  const { chartBars, ySteps } = useMemo(() => {
     const rawData = stats?.chart_data || [];
     const totalTxInDB = stats?.total_transaksi || 0;
+    let buckets: { label: string; count: number }[] = [];
 
     if (timeRange === "1m") {
       const now = new Date();
@@ -207,16 +208,8 @@ export default function AdminDashboard() {
         weekBuckets[2].count = Math.max(1, Math.round(totalTxInDB * 0.28));
         weekBuckets[3].count = Math.max(1, Math.round(totalTxInDB * 0.32));
       }
-
-      const maxVal = Math.max(...weekBuckets.map((w) => w.count), 1);
-      return weekBuckets.map((w) => ({
-        ...w,
-        pct:
-          w.count > 0 ? Math.max(Math.round((w.count / maxVal) * 100), 10) : 6,
-      }));
-    }
-
-    if (timeRange === "1y") {
+      buckets = weekBuckets;
+    } else if (timeRange === "1y") {
       const monthNames = [
         "Jan",
         "Feb",
@@ -232,8 +225,7 @@ export default function AdminDashboard() {
         "Des",
       ];
       const currentMonth = new Date().getMonth();
-      const monthBuckets: { label: string; monthIdx: number; count: number }[] =
-        [];
+      const monthBuckets: { label: string; count: number; monthIdx: number }[] = [];
 
       for (let i = 11; i >= 0; i--) {
         const mIdx = (currentMonth - i + 12) % 12;
@@ -260,44 +252,50 @@ export default function AdminDashboard() {
           m.count = Math.max(1, Math.round(base * (0.6 + idx * 0.08)));
         });
       }
+      buckets = monthBuckets.map((m) => ({ label: m.label, count: m.count }));
+    } else {
+      // Default: 7d
+      const dates = [];
+      const now = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const iso = d.toISOString().split("T")[0];
+        const label = d.toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short",
+        });
+        const found = rawData.find((c) => c.date === iso);
+        const count = found ? Number(found.total || 0) : 0;
+        dates.push({ label, count });
+      }
 
-      const maxVal = Math.max(...monthBuckets.map((m) => m.count), 1);
-      return monthBuckets.map((m) => ({
-        ...m,
-        pct:
-          m.count > 0 ? Math.max(Math.round((m.count / maxVal) * 100), 10) : 6,
-      }));
+      const hasData = dates.some((d) => d.count > 0);
+      if (!hasData && totalTxInDB > 0) {
+        const base = Math.max(1, Math.floor(totalTxInDB / 7));
+        dates.forEach((d, idx) => {
+          d.count = Math.max(1, Math.round(base * (0.7 + idx * 0.1)));
+        });
+      }
+      buckets = dates;
     }
 
-    // Default: 7d
-    const dates = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const iso = d.toISOString().split("T")[0];
-      const label = d.toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "short",
-      });
-      const found = rawData.find((c) => c.date === iso);
-      const count = found ? Number(found.total || 0) : 0;
-      dates.push({ date: iso, label, count });
-    }
+    const peakVal = Math.max(...buckets.map((b) => b.count), 0);
+    const yMax = peakVal === 0 ? 4 : Math.max(4, Math.ceil(peakVal / 4) * 4);
+    const ySteps = [
+      yMax,
+      Math.round(yMax * 0.75),
+      Math.round(yMax * 0.5),
+      Math.round(yMax * 0.25),
+      0,
+    ];
 
-    const hasData = dates.some((d) => d.count > 0);
-    if (!hasData && totalTxInDB > 0) {
-      const base = Math.max(1, Math.floor(totalTxInDB / 7));
-      dates.forEach((d, idx) => {
-        d.count = Math.max(1, Math.round(base * (0.7 + idx * 0.1)));
-      });
-    }
-
-    const maxVal = Math.max(...dates.map((b) => b.count), 1);
-    return dates.map((b) => ({
+    const bars = buckets.map((b) => ({
       ...b,
-      pct: b.count > 0 ? Math.max(Math.round((b.count / maxVal) * 100), 10) : 6,
+      pct: b.count > 0 ? Math.max(Math.round((b.count / yMax) * 100), 6) : 0,
     }));
+
+    return { chartBars: bars, ySteps };
   }, [stats, timeRange]);
 
   return (
@@ -542,20 +540,18 @@ export default function AdminDashboard() {
           </div>
 
           {/* Full Height Chart Container */}
-          <div className="flex-1 flex flex-col justify-between mt-4 relative h-[240px]">
+          <div className="flex-1 flex flex-col justify-between mt-4 relative h-[250px]">
             {/* Grid & Chart Overlay Area */}
-            <div className="relative flex-1 w-full flex h-[200px]">
-              {/* Dedicated Left Y-Axis Labels */}
-              <div className="w-10 flex flex-col justify-between text-[10px] font-bold text-admin-textsecondary font-tabular pb-6 select-none border-r border-admin-hairline/40 pr-2">
-                <span>100%</span>
-                <span>75%</span>
-                <span>50%</span>
-                <span>25%</span>
-                <span>0%</span>
+            <div className="relative flex-1 w-full flex h-[210px]">
+              {/* Dedicated Left Y-Axis Labels (Actual Counts) */}
+              <div className="w-12 shrink-0 flex flex-col justify-between text-[10px] font-bold text-admin-textsecondary font-tabular pb-6 select-none border-r border-admin-hairline/40 pr-2">
+                {ySteps.map((step, idx) => (
+                  <span key={idx} className="text-right block">{step}</span>
+                ))}
               </div>
 
               {/* Grid Lines + Bar Chart Canvas */}
-              <div className="relative flex-1 h-full pl-3 pr-2">
+              <div className="relative flex-1 h-full pl-2 pr-2">
                 {/* Horizontal Dashed Grid Lines */}
                 <div className="absolute inset-x-0 inset-y-0 flex flex-col justify-between pointer-events-none pb-6">
                   <div className="border-b border-dashed border-admin-hairline/60 w-full" />
@@ -566,34 +562,57 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Vertical Bar Pillars */}
-                <div className="relative h-full flex items-end justify-between px-2 pb-6 pt-2 z-10">
-                  {chartBars.map((bar, idx) => (
-                    <div
-                      key={idx}
-                      className="flex flex-col items-center w-[11%] h-full justify-end"
-                    >
-                      {/* Bar Pillar with Hover Tooltip */}
+                <div className="relative h-full flex items-end justify-between pb-6 pt-2 z-10">
+                  {chartBars.map((bar, idx) => {
+                    const is12Items = chartBars.length > 8;
+                    const maxWClass = is12Items
+                      ? "max-w-[28px] sm:max-w-[38px]"
+                      : "max-w-[40px] sm:max-w-[52px]";
+
+                    return (
                       <div
-                        className="w-full max-w-[32px] bg-admin-primary rounded-t-lg transition-all duration-300 group/bar hover:bg-[#009A44] hover:shadow-md shadow-admin-primary/20 relative cursor-pointer"
-                        style={{ height: `${bar.pct}%` }}
+                        key={idx}
+                        className="flex-1 flex flex-col items-center h-full justify-end px-0.5"
                       >
-                        {/* Hover Tooltip Badge */}
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1E293B] text-white text-[10px] px-2.5 py-1 rounded-lg opacity-0 pointer-events-none group-hover/bar:opacity-100 group-hover/bar:-translate-y-1 transition-all duration-200 whitespace-nowrap font-bold shadow-xl z-30">
-                          {bar.count} Transaksi
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#1E293B]" />
-                        </div>
+                        {bar.count > 0 ? (
+                          <div
+                            className={`w-full ${maxWClass} bg-gradient-to-t from-[#24332B] to-[#3B5446] rounded-t-xl transition-all duration-300 group/bar hover:from-[#1C2922] hover:to-[#4C6B59] hover:shadow-lg shadow-admin-primary/10 relative cursor-pointer`}
+                            style={{ height: `${bar.pct}%` }}
+                          >
+                            {/* Hover Tooltip Badge */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1E293B] text-white text-[10px] px-2.5 py-1.5 rounded-xl opacity-0 pointer-events-none group-hover/bar:opacity-100 group-hover/bar:-translate-y-1 transition-all duration-200 whitespace-nowrap font-bold shadow-xl z-30 flex flex-col items-center">
+                              <span>{bar.count} Transaksi</span>
+                              <span className="text-[9px] text-gray-300 font-normal">{bar.label}</span>
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#1E293B]" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={`w-full ${maxWClass} h-[3px] bg-admin-hairline/60 rounded-full transition-all group/bar relative cursor-pointer hover:bg-admin-primary/40`}>
+                            {/* Hover Tooltip Badge for 0 */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1E293B] text-white text-[10px] px-2.5 py-1.5 rounded-xl opacity-0 pointer-events-none group-hover/bar:opacity-100 group-hover/bar:-translate-y-1 transition-all duration-200 whitespace-nowrap font-bold shadow-xl z-30 flex flex-col items-center">
+                              <span>0 Transaksi</span>
+                              <span className="text-[9px] text-gray-300 font-normal">{bar.label}</span>
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#1E293B]" />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            {/* X-Axis Dates Row (Indented past Y-axis column) */}
-            <div className="pl-12 flex justify-between text-[11px] font-bold text-admin-textsecondary pt-2 uppercase tracking-wider border-t border-admin-hairline">
-              {chartBars.map((bar, i) => (
-                <span key={i}>{bar.label}</span>
-              ))}
+            {/* X-Axis Dates Row (100% Pixel-Perfect Alignment) */}
+            <div className="w-full flex border-t border-admin-hairline pt-2">
+              <div className="w-12 shrink-0" />
+              <div className="flex-1 flex justify-between pl-2 pr-2 text-[10px] sm:text-[11px] font-bold text-admin-textsecondary uppercase tracking-wider">
+                {chartBars.map((bar, i) => (
+                  <div key={i} className="flex-1 text-center truncate px-0.5">
+                    {bar.label}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

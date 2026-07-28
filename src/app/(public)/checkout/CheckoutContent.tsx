@@ -16,8 +16,9 @@ import {
   Navigation,
   Locate,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getProductImageUrl } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { calculateDeliveryCost, calculateDistanceKm } from "@/lib/location";
 
 interface CartProduct {
   id: string;
@@ -25,6 +26,13 @@ interface CartProduct {
   price: string;
   unit: string;
   min_order_kg: string;
+  image_url?: string | null;
+  peternak?: {
+    peternak_profile?: {
+      lat?: string | number | null;
+      lng?: string | number | null;
+    };
+  };
 }
 
 interface CartItem {
@@ -196,6 +204,29 @@ export default function CheckoutContent() {
     (acc, item) => acc + Number(item.product.price) * Number(item.quantity_kg),
     0,
   );
+
+  const totalWeightKg = cartItems.reduce(
+    (acc, item) => acc + Number(item.quantity_kg),
+    0,
+  );
+
+  let sellerLat = -7.9839;
+  let sellerLng = 112.6214;
+  const firstPeternakProfile = cartItems[0]?.product?.peternak?.peternak_profile;
+  if (firstPeternakProfile?.lat && firstPeternakProfile?.lng) {
+    sellerLat = Number(firstPeternakProfile.lat);
+    sellerLng = Number(firstPeternakProfile.lng);
+  }
+
+  const userLat = Number(gisLat) || -7.898453;
+  const userLng = Number(gisLng) || 112.653688;
+  const distanceKm = calculateDistanceKm(sellerLat, sellerLng, userLat, userLng);
+
+  const shippingCalculation = calculateDeliveryCost(
+    distanceKm > 0 ? distanceKm : 8.75,
+    totalWeightKg > 0 ? totalWeightKg : 5,
+  );
+  const estimatedShippingCost = shippingCalculation.deliveryCostRaw || EST_SHIPPING;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -715,8 +746,16 @@ export default function CheckoutContent() {
               <div className="space-y-4 mb-6 max-h-52 overflow-y-auto pr-1">
                 {cartItems.map((item) => (
                   <div key={item.id} className="flex gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-[#F0F5F1] border border-[#E8E0D5]/40 shrink-0 flex items-center justify-center">
-                      <Leaf className="w-5 h-5 text-[#009A44]/20" />
+                    <div className="w-10 h-10 rounded-lg bg-[#F0F5F1] border border-[#E8E0D5]/40 shrink-0 overflow-hidden flex items-center justify-center">
+                      {item.product.image_url ? (
+                        <img
+                          src={getProductImageUrl(item.product.image_url)}
+                          alt={item.product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Leaf className="w-5 h-5 text-[#009A44]/20" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold text-land-ink text-xs truncate">
@@ -753,7 +792,7 @@ export default function CheckoutContent() {
                       <em className="not-italic opacity-70">(estimasi)</em>
                     </span>
                     <span className="font-bold text-land-muted font-tabular">
-                      {formatRupiah(EST_SHIPPING)}
+                      {formatRupiah(estimatedShippingCost)}
                     </span>
                   </div>
                 )}
@@ -775,14 +814,16 @@ export default function CheckoutContent() {
                       </span>
                     </div>
                     <span className="px-2.5 py-0.5 bg-red-100 border border-red-200 text-red-700 font-bold text-xs rounded-lg font-tabular">
-                      +{formatRupiah(EST_SHIPPING)}
+                      +{formatRupiah(estimatedShippingCost)}
                     </span>
                   </div>
 
                   <div className="text-xs text-red-800 space-y-1.5 pt-0.5">
                     <div className="flex items-start gap-1.5">
                       <span className="text-red-500 font-bold">•</span>
-                      <span>Dihitung terpisah oleh mitra logistik</span>
+                      <span>
+                        Dihitung terpisah via kalkulator logistik ({shippingCalculation.vehicleType} · {distanceKm.toFixed(1)} km)
+                      </span>
                     </div>
                     <div className="flex items-start gap-1.5">
                       <span className="text-red-500 font-bold">•</span>

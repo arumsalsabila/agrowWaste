@@ -3,9 +3,14 @@ import "./globals.css";
 import { ToastProvider } from "@/components/admin/Toast";
 
 export const metadata: Metadata = {
-  title: "AgroWaste | Panel Pengelolaan",
+  title: "AgroWaste | Platform Perdagangan Limbah Organik",
   description:
-    "Panel Pengelolaan AgroWaste untuk mengelola platform pertanian sirkular.",
+    "Platform pengelolaan dan perdagangan limbah pertanian dan peternakan sirkular.",
+  icons: {
+    icon: "/LOGO.png?v=3",
+    shortcut: "/LOGO.png?v=3",
+    apple: "/LOGO.png?v=3",
+  },
 };
 
 export default function RootLayout({
@@ -16,6 +21,9 @@ export default function RootLayout({
   return (
     <html lang="id">
       <head>
+        <link rel="icon" href="/LOGO.png?v=3" type="image/png" />
+        <link rel="shortcut icon" href="/LOGO.png?v=3" type="image/png" />
+        <link rel="apple-touch-icon" href="/LOGO.png?v=3" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"

@@ -176,15 +176,19 @@ export default function CourierDashboard() {
   }, [leafletLoaded, shipments, mapInstance]);
 
   const totalCount = shipments.length;
-  const successCount = shipments.filter((s) => s.status === "terkirim").length;
+  const successCount = shipments.filter(
+    (s) => s.status === "terkirim" || s.status === "selesai",
+  ).length;
   const activeRoutesCount = shipments.filter(
-    (s) => s.status === "dalam_perjalanan",
+    (s) => s.status === "dalam_perjalanan" || s.status === "sedang_berjalan",
   ).length;
   const scheduledCount = shipments.filter(
     (s) => s.status === "dijadwalkan",
   ).length;
 
-  const todayTasks = shipments.filter((s) => s.status !== "terkirim");
+  const todayTasks = shipments.filter(
+    (s) => s.status !== "terkirim" && s.status !== "selesai",
+  );
 
   return (
     <div className="space-y-8 animate-fade-in pb-20 relative">

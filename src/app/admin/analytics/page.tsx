@@ -195,8 +195,6 @@ export default function AdminAnalytics() {
         return "Limbah Padat";
       case "limbah_cair":
         return "Limbah Cair";
-      case "sisa_pakan":
-        return "Sisa Pakan";
       case "limbah_olahan":
         return "Limbah Olahan";
       default:

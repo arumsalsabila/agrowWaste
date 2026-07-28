@@ -15,7 +15,7 @@ import {
   XCircle,
   Star,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getProductImageUrl } from "@/lib/api";
 import { getToken, logout } from "@/lib/auth";
 
 interface OrderProduct {
@@ -23,6 +23,7 @@ interface OrderProduct {
   name: string;
   price: string;
   unit: string;
+  image_url?: string | null;
 }
 
 interface OrderItem {
@@ -43,6 +44,7 @@ interface Order {
   product?: OrderProduct;
   items?: OrderItem[];
   reviews?: any[];
+  shipment?: { status: string } | null;
 }
 
 // Sidebar status filter options
@@ -458,12 +460,39 @@ export default function PesananContent() {
                   order.product?.name ??
                   order.items?.[0]?.product?.name ??
                   "Pesanan AgroWaste";
+                const productImage =
+                  order.product?.image_url ??
+                  order.items?.[0]?.product?.image_url ??
+                  null;
 
                 const orderId =
-                  order.order_number ?? order.id.slice(0, 8).toUpperCase();
+                  order.order_number ||
+                  (order.id.startsWith("AGW-")
+                    ? order.id
+                    : `AGW-${order.id.slice(0, 8).toUpperCase()}`);
                 const isShipping = order.status === "dikirim";
-                const isConfirmable =
-                  order.status === "dikonfirmasi" || order.status === "dikirim";
+
+                const isDeliveredByCourier =
+                  order.shipment?.status === "terkirim" ||
+                  order.shipment?.status === "selesai";
+
+                const isPickupReady =
+                  order.metode_pengiriman === "pickup" &&
+                  (order.status === "dikirim" || order.status === "dikonfirmasi");
+
+                const canConfirmReceipt =
+                  order.status !== "selesai" &&
+                  (isDeliveredByCourier || isPickupReady);
+
+                const isPendingDelivery =
+                  order.status !== "selesai" &&
+                  !canConfirmReceipt &&
+                  (order.status === "dikirim" ||
+                    order.status === "dikonfirmasi" ||
+                    order.status === "menunggu_konfirmasi" ||
+                    order.shipment?.status === "sedang_berjalan" ||
+                    order.shipment?.status === "dalam_perjalanan" ||
+                    order.shipment?.status === "dijadwalkan");
 
                 return (
                   <div
@@ -496,8 +525,16 @@ export default function PesananContent() {
                     {/* Card Body */}
                     <div className="flex flex-col gap-4">
                       <div className="flex gap-4 items-start">
-                        <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-xl sm:rounded-[20px] bg-[#F0F5F1] shrink-0 border border-[#E8E0D5]/40 flex items-center justify-center">
-                          <Leaf className="w-7 h-7 sm:w-10 sm:h-10 text-[#009A44]/20" />
+                        <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-xl sm:rounded-[20px] bg-[#F0F5F1] shrink-0 border border-[#E8E0D5]/40 overflow-hidden flex items-center justify-center">
+                          {productImage ? (
+                            <img
+                              src={getProductImageUrl(productImage)}
+                              alt={productName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Leaf className="w-7 h-7 sm:w-10 sm:h-10 text-[#009A44]/20" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-land-heading font-bold text-lg sm:text-xl text-land-ink mb-1 truncate sm:whitespace-normal">
@@ -509,9 +546,17 @@ export default function PesananContent() {
                             </p>
                           )}
                           {isShipping && (
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold shadow-sm">
-                              <Truck className="w-4 h-4" /> Sedang dalam
-                              perjalanan
+                            <div
+                              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm ${
+                                isDeliveredByCourier
+                                  ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
+                                  : "bg-amber-50 border border-amber-200 text-amber-700"
+                              }`}
+                            >
+                              <Truck className="w-4 h-4" />{" "}
+                              {isDeliveredByCourier
+                                ? "Sudah sampai di lokasi pengiriman"
+                                : "Sedang dalam perjalanan"}
                             </div>
                           )}
                         </div>
@@ -537,82 +582,108 @@ export default function PesananContent() {
                     </div>
 
                     {/* Card Footer */}
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-[#E8E0D5]/50 mt-2">
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-[#E8E0D5]/50 mt-2">
                       <span className="text-xs font-bold text-land-muted">
                         Dipesan pada:{" "}
                         <span className="text-land-ink">
                           {formatDate(order.created_at)}
                         </span>
                       </span>
-                      <div className="flex gap-3 w-full sm:w-auto flex-wrap">
-                        {isConfirmable && (
-                          <button
-                            type="button"
-                            onClick={() => handleConfirmReceipt(order.id)}
-                            disabled={confirmLoadingId === order.id}
-                            className="btn-clay-primary bg-[#009A44] hover:bg-[#008139] px-6 py-3 text-sm flex items-center justify-center gap-2 text-white disabled:opacity-60"
-                          >
-                            {confirmLoadingId === order.id && (
-                              <svg
-                                className="animate-spin h-4 w-4 text-white"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  className="opacity-25"
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                />
-                                <path
-                                  className="opacity-75"
-                                  fill="currentColor"
-                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                                />
-                              </svg>
-                            )}
-                            Pesanan Diterima
-                          </button>
-                        )}
-                        {isShipping ? (
-                          <Link
-                            href={`/pesanan/${order.id}/lacak`}
-                            className="btn-clay-primary px-6 py-3 text-sm w-full sm:w-auto flex justify-center items-center gap-2"
-                          >
-                            <MapPin className="w-4 h-4" /> Lacak Pengiriman
-                          </Link>
-                        ) : (
+
+                      <div className="flex gap-2 w-full sm:w-auto items-center justify-end flex-wrap sm:flex-nowrap">
+                        {/* 1. STATE SELESAI */}
+                        {order.status === "selesai" ? (
                           <>
-                            {(order.status === "selesai" ||
-                              order.status === "diterima" ||
-                              order.status === "pesanan_diterima") &&
-                              (!order.reviews || order.reviews.length === 0) &&
-                              (order.product?.id ||
-                                order.items?.[0]?.product_id) && (
-                                <Link
-                                  href={`/marketplace/${order.product?.id || order.items?.[0]?.product_id}`}
-                                  className="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-                                >
-                                  <Star className="w-4 h-4 fill-white text-white" />{" "}
-                                  Beri Ulasan
-                                </Link>
-                              )}
-                            <Link
-                              href={`/pesanan/${order.id}`}
-                              className="btn-clay-secondary px-6 py-3 text-sm flex-1 sm:flex-none flex justify-center items-center"
-                            >
-                              Detail
-                            </Link>
+                            {(!order.reviews || order.reviews.length === 0) && (
+                              <Link
+                                href={`/marketplace/${order.product?.id || order.items?.[0]?.product_id || order.items?.[0]?.product?.id || ""}`}
+                                className="btn-clay-primary bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
+                              >
+                                <Star className="w-3.5 h-3.5 fill-white text-white" />
+                                Ulas Produk
+                              </Link>
+                            )}
                             <Link
                               href="/marketplace"
-                              className="btn-clay-primary px-6 py-3 text-sm flex-1 sm:flex-none flex justify-center items-center"
+                              className="btn-clay-primary px-4 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5"
                             >
                               Beli Lagi
                             </Link>
                           </>
+                        ) : (
+                          /* 2. STATE BELUM SELESAI */
+                          <>
+                            {canConfirmReceipt && (
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmReceipt(order.id)}
+                                disabled={confirmLoadingId === order.id}
+                                className="btn-clay-primary bg-[#009A44] hover:bg-[#008139] px-4 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 text-white shadow-md shadow-[#009A44]/20 active:scale-95 transition-all disabled:opacity-60"
+                              >
+                                {confirmLoadingId === order.id ? (
+                                  <>
+                                    <svg
+                                      className="animate-spin h-3.5 w-3.5 text-white"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        className="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                      />
+                                      <path
+                                        className="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                      />
+                                    </svg>
+                                    Memproses...
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    Pesanan Diterima
+                                  </>
+                                )}
+                              </button>
+                            )}
+
+                            {isPendingDelivery && (
+                              <button
+                                type="button"
+                                disabled
+                                title="Pesanan belum sampai di lokasi Anda."
+                                className="px-4 py-2.5 text-xs font-bold rounded-xl bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed flex items-center justify-center gap-1.5"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-gray-300" />
+                                Pesanan Diterima
+                              </button>
+                            )}
+
+                            {(order.status === "dikirim" ||
+                              order.shipment ||
+                              order.metode_pengiriman === "logistik") && (
+                              <Link
+                                href={`/pesanan/${order.id}/lacak`}
+                                className="btn-clay-primary bg-[#1C231F] hover:bg-[#2C3930] px-4 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 text-white shadow-sm transition-all active:scale-95"
+                              >
+                                <MapPin className="w-3.5 h-3.5 text-[#4ADE80]" />
+                                Lacak
+                              </Link>
+                            )}
+                          </>
                         )}
+
+                        <Link
+                          href={`/pesanan/${order.id}`}
+                          className="btn-clay-secondary px-4 py-2.5 text-xs font-bold flex items-center justify-center"
+                        >
+                          Detail
+                        </Link>
                       </div>
                     </div>
                   </div>

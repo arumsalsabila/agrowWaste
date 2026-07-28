@@ -13,7 +13,7 @@ import {
   Ticket,
   Leaf,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getProductImageUrl } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 
 interface CartProduct {
@@ -24,6 +24,7 @@ interface CartProduct {
   min_order_kg: string;
   kondisi: string | null;
   jenis_ternak: string;
+  image_url?: string | null;
   peternak_profile?: { nama_peternakan: string; badge: string };
 }
 
@@ -43,7 +44,6 @@ function formatRupiah(n: string | number) {
 }
 
 const SHIPPING = 24500;
-const ADMIN_FEE = 2000;
 
 export default function CartContent() {
   const router = useRouter();
@@ -295,9 +295,17 @@ export default function CartContent() {
 
                   {/* Product details */}
                   <div className="p-4 sm:p-6 flex gap-4 sm:gap-6 items-start">
-                    {/* Photo placeholder */}
-                    <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-xl sm:rounded-2xl bg-[#F0F5F1] border border-[#E8E0D5]/40 shrink-0 flex items-center justify-center">
-                      <Leaf className="w-7 h-7 sm:w-10 sm:h-10 text-[#009A44]/20" />
+                    {/* Product photo */}
+                    <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-xl sm:rounded-2xl bg-[#F0F5F1] border border-[#E8E0D5]/40 shrink-0 overflow-hidden flex items-center justify-center">
+                      {item.product.image_url ? (
+                        <img
+                          src={getProductImageUrl(item.product.image_url)}
+                          alt={item.product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Leaf className="w-7 h-7 sm:w-10 sm:h-10 text-[#009A44]/20" />
+                      )}
                     </div>
 
                     {/* Content block */}
@@ -405,12 +413,6 @@ export default function CartContent() {
                     {formatRupiah(SHIPPING)}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-land-muted">Biaya Administrasi</span>
-                  <span className="font-bold text-land-ink font-tabular">
-                    {formatRupiah(ADMIN_FEE)}
-                  </span>
-                </div>
               </div>
 
               <div className="flex justify-between items-center mb-6">
@@ -418,7 +420,7 @@ export default function CartContent() {
                   Total Tagihan
                 </span>
                 <span className="text-2xl font-bold text-[#009A44] font-tabular">
-                  {formatRupiah(subtotal + SHIPPING + ADMIN_FEE)}
+                  {formatRupiah(subtotal + SHIPPING)}
                 </span>
               </div>
               <Link
