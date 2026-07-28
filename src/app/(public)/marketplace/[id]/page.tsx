@@ -46,7 +46,7 @@ interface ReviewItem {
   rating: number;
   comment: string | null;
   created_at: string;
-  user?: { id: string; name: string; email: string };
+  user?: { id: string; name: string; email: string; avatar_url?: string | null };
 }
 
 function formatRupiah(n: string | number) {
@@ -165,10 +165,21 @@ export default function ProductDetail() {
         setReviewMsg({ type: "success", text: json.message });
         setNewComment("");
         setCanReview(false); // Sembunyikan form setelah sukses (1 kali per transaksi pesanan)
-        // Reload reviews
+        // Reload reviews & product info so rating_avg & review_count update instantly
         apiFetch(`/products/${id}/reviews`)
           .then((r) => (r.ok ? r.json() : null))
           .then((j) => j?.data && setReviews(j.data));
+
+        apiFetch(`/products/${id}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((j) => {
+            if (j?.data) {
+              const p: Product = j.data;
+              if (p.image_url) p.image_url = getProductImageUrl(p.image_url);
+              if (p.image_urls) p.image_urls = p.image_urls.map((url) => getProductImageUrl(url));
+              setProduct(p);
+            }
+          });
       } else {
         setReviewMsg({
           type: "error",
@@ -542,9 +553,20 @@ export default function ProductDetail() {
                         >
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-[#009A44]/10 text-[#009A44] font-bold flex items-center justify-center text-sm">
-                                {initial}
-                              </div>
+                              {rev.user?.avatar_url ? (
+                                <img
+                                  src={rev.user.avatar_url}
+                                  alt={userName}
+                                  className="w-9 h-9 rounded-full object-cover border border-[#E8E0D5]"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-[#009A44]/10 text-[#009A44] font-bold flex items-center justify-center text-sm">
+                                  {initial}
+                                </div>
+                              )}
                               <div>
                                 <h4 className="text-xs sm:text-sm font-bold text-[#111111]">
                                   {userName}
