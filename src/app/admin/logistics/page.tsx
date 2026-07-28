@@ -619,21 +619,15 @@ export default function AdminLogistics() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          {order.status === "dikonfirmasi" ? (
-                            <button
-                              onClick={() => handleAssignClick(order)}
-                              className="px-4 py-2 text-xs font-bold text-white bg-admin-primary hover:bg-admin-primary-hover rounded-xl transition-colors shadow-md shadow-admin-primary/20"
-                            >
-                              Tugaskan
-                            </button>
-                          ) : (
-                            <button
-                              disabled
-                              className="px-4 py-2 text-xs font-bold text-admin-textsecondary bg-admin-warmbg rounded-xl cursor-not-allowed opacity-50"
-                            >
-                              Ditugaskan
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleAssignClick(order)}
+                            className="px-3.5 py-1.5 text-xs font-bold text-admin-primary bg-admin-primary-light hover:bg-admin-primary/20 rounded-xl transition-all border border-admin-primary/20 cursor-pointer flex items-center gap-1.5 mx-auto"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            {courierName !== "Belum Ditugaskan" ? "Ubah Kurir" : "Tugaskan Kurir"}
+                          </button>
                         </td>
                       </tr>
                     );
