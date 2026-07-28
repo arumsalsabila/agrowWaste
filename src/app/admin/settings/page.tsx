@@ -14,6 +14,9 @@ export default function SettingsPage() {
 
   const [profileName, setProfileName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [profileBio, setProfileBio] = useState(
     "Bertanggung jawab penuh atas kelancaran moderasi marketplace limbah tani AgroWaste.",
   );
@@ -25,6 +28,8 @@ export default function SettingsPage() {
         if (json.success && json.data) {
           setProfileName(json.data.name ?? "");
           setProfileEmail(json.data.email ?? "");
+          setProfilePhone(json.data.phone ?? "");
+          setProfileAvatarUrl(json.data.avatar_url ?? "");
         } else {
           const localUser = getUser();
           if (localUser) {
@@ -47,7 +52,7 @@ export default function SettingsPage() {
     try {
       const res = await apiFetch("/profile", {
         method: "PUT",
-        body: JSON.stringify({ name: profileName }),
+        body: JSON.stringify({ name: profileName, phone: profilePhone }),
       });
       const json = await res.json();
       if (res.ok && json.success) {
@@ -74,6 +79,34 @@ export default function SettingsPage() {
     e.preventDefault();
     setIsSuccessModalOpen(true);
     (e.target as HTMLFormElement).reset();
+  };
+
+  const handleAvatarUpload = async (file: File) => {
+    setAvatarUploading(true);
+    const formData = new FormData();
+    formData.append("avatar", file);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("agrowaste_token") : null;
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1/profile/avatar`,
+        {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        }
+      );
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setProfileAvatarUrl(json.data?.avatar_url ?? "");
+        showToast("Foto profil berhasil diperbarui.", "success");
+      } else {
+        showToast(json.message ?? "Gagal mengunggah foto.", "error");
+      }
+    } catch {
+      showToast("Gagal terhubung ke server saat upload foto.", "error");
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const toggle2FA = () => {
@@ -147,12 +180,36 @@ export default function SettingsPage() {
                   </h3>
 
                   <div className="flex items-center gap-6 mb-8">
-                    <div className="relative">
+                    <div className="relative group w-20 h-20 rounded-full overflow-hidden shadow-sm border border-admin-hairline cursor-pointer">
                       <img
-                        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
+                        src={profileAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileName || "Admin")}&background=3F4F44&color=fff&rounded=true`}
                         alt="Foto Profil"
-                        className="w-20 h-20 rounded-full object-cover shadow-sm border border-admin-hairline"
+                        className="w-full h-full object-cover"
                       />
+                      <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                        {avatarUploading ? (
+                          <svg className="animate-spin w-5 h-5 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                          </svg>
+                        )}
+                        <span className="text-[9px] text-white font-bold mt-1">{avatarUploading ? "Mengupload..." : "Ganti Foto"}</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/jpg,image/gif"
+                          className="hidden"
+                          disabled={avatarUploading}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleAvatarUpload(file);
+                          }}
+                        />
+                      </label>
                     </div>
                   </div>
 
@@ -217,11 +274,13 @@ export default function SettingsPage() {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-admin-textsecondary mb-1">
-                          Nomor Handphone Darurat
+                          Nomor Handphone
                         </label>
                         <input
                           type="text"
-                          defaultValue="+62 812-3456-7890"
+                          value={profilePhone}
+                          onChange={(e) => setProfilePhone(e.target.value)}
+                          placeholder="+62 8xx-xxxx-xxxx"
                           className="w-full px-4 py-2.5 bg-admin-warmbg border border-admin-hairline rounded-xl text-sm text-admin-textprimary font-tabular focus:outline-none focus:ring-1 focus:ring-admin-primary"
                         />
                       </div>

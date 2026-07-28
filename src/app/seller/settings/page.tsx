@@ -45,6 +45,7 @@ export default function SettingsPage() {
   const [kabupaten, setKabupaten] = useState("");
   const [kecamatan, setKecamatan] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [lat, setLat] = useState<number | string>("");
   const [lng, setLng] = useState<number | string>("");
   const [bankAccount, setBankAccount] = useState("");
@@ -249,6 +250,33 @@ export default function SettingsPage() {
     }
   };
 
+  const handleAvatarUpload = async (file: File) => {
+    setAvatarUploading(true);
+    const formData = new FormData();
+    formData.append("avatar", file);
+    try {
+      const token = getToken();
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1/profile/avatar`,
+        {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        }
+      );
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setAvatarUrl(json.data?.avatar_url ?? "");
+      } else {
+        setErrorMsg(json.message ?? "Gagal mengunggah foto.");
+      }
+    } catch {
+      setErrorMsg("Gagal terhubung ke server saat upload foto.");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-8 animate-pulse pb-10">
@@ -339,31 +367,44 @@ export default function SettingsPage() {
                 </h3>
 
                 <div className="flex items-center gap-6 mb-6">
-                  <div className="w-20 h-20 rounded-2xl bg-seller-warmbg border border-seller-hairline flex items-center justify-center overflow-hidden relative shrink-0">
+                  <div className="relative group w-20 h-20 rounded-2xl bg-seller-warmbg border border-seller-hairline overflow-hidden shrink-0">
                     <img
                       src={avatarUrl || fallbackAvatar}
                       alt="Avatar"
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src =
-                          fallbackAvatar;
+                        (e.currentTarget as HTMLImageElement).src = fallbackAvatar;
                       }}
                     />
+                    <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                      {avatarUploading ? (
+                        <svg className="animate-spin w-5 h-5 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                      )}
+                      <span className="text-[9px] text-white font-bold mt-1">{avatarUploading ? "Mengupload..." : "Ganti Foto"}</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/jpg,image/gif"
+                        className="hidden"
+                        disabled={avatarUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleAvatarUpload(file);
+                        }}
+                      />
+                    </label>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-xs font-bold text-seller-textsecondary mb-1">
-                      URL Avatar / Logo
-                    </label>
-                    <input
-                      type="url"
-                      value={avatarUrl}
-                      onChange={(e) => setAvatarUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="w-full px-4 py-2.5 bg-seller-warmbg border border-seller-hairline rounded-xl text-sm text-seller-textprimary focus:outline-none focus:ring-1 focus:ring-seller-primary"
-                    />
-                    <p className="text-[10px] text-seller-textsecondary mt-1">
-                      Masukkan URL gambar (opsional).
-                    </p>
+                    <p className="text-sm font-bold text-seller-textprimary">{ownerName || "Nama Peternak"}</p>
+                    <p className="text-xs text-seller-textsecondary mt-0.5">{farmName || "Nama Peternakan"}</p>
+                    <p className="text-[10px] text-seller-textsecondary mt-2">Klik foto untuk mengubah. Format: JPG, PNG, GIF. Maks 2MB.</p>
                   </div>
                 </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
@@ -22,6 +22,18 @@ function LoginPageContent() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [adminPhone, setAdminPhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch("/contact")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data?.phone) {
+          setAdminPhone(json.data.phone);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,8 +309,14 @@ function LoginPageContent() {
                 Pembeli
               </span>
             </Link>
-            <Link
-              href="/role"
+            <a
+              href={(() => {
+                const raw = (adminPhone ?? "6281234567890").replace(/\D/g, "");
+                const wa = raw.startsWith("0") ? "62" + raw.slice(1) : raw.startsWith("62") ? raw : "62" + raw;
+                return `https://wa.me/${wa}?text=Halo%20Admin%20AgroWaste%2C%20saya%20ingin%20mendaftar%20sebagai%20Mitra%20Kurir%20Logistik.`;
+              })()}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border border-land-cream bg-white hover:border-land-ink hover:bg-land-warm/10 transition-all group"
             >
               <svg
@@ -312,12 +330,12 @@ function LoginPageContent() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                ></path>
+                />
               </svg>
               <span className="text-[9px] font-bold text-land-ink">
                 Logistik
               </span>
-            </Link>
+            </a>
           </div>
         </div>
       </div>

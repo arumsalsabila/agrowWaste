@@ -232,6 +232,7 @@ export default function CourierSettings() {
     "Mobil Pick-up",
   );
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const [lat, setLat] = useState<string>("");
   const [lng, setLng] = useState<string>("");
@@ -240,6 +241,31 @@ export default function CourierSettings() {
   const [kabupaten, setKabupaten] = useState("");
   const [provinsi, setProvinsi] = useState("");
   const [isDetectingGps, setIsDetectingGps] = useState(false);
+
+  const handleAvatarUpload = async (file: File) => {
+    setAvatarUploading(true);
+    const formData = new FormData();
+    formData.append("avatar", file);
+    try {
+      const token = getToken();
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1/profile/avatar`,
+        {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        }
+      );
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setAvatarUrl(json.data?.avatar_url ?? "");
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const handleDetectGPS = () => {
     if (!navigator.geolocation) {
@@ -414,7 +440,7 @@ export default function CourierSettings() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column: Profile Card */}
           <div className="lg:col-span-4 bg-courier-surfacewhite border border-courier-hairline rounded-2xl p-8 shadow-sm flex flex-col items-center text-center">
-            <div className="w-32 h-32 rounded-2xl bg-courier-primary/10 mb-6 p-2 relative">
+            <div className="w-32 h-32 rounded-2xl bg-courier-primary/10 mb-6 p-2 relative group cursor-pointer">
               <div className="absolute inset-0 bg-courier-primary rounded-2xl overflow-hidden">
                 <div className="absolute top-2 left-2 w-8 h-8 rounded-full border border-white/20"></div>
                 <div className="absolute bottom-4 right-4 w-12 h-12 rounded-full border border-white/20"></div>
@@ -424,26 +450,38 @@ export default function CourierSettings() {
                 alt={fullName}
                 className="w-full h-full rounded-xl object-cover relative z-10 border-2 border-white shadow-md"
               />
+              <label className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-20">
+                {avatarUploading ? (
+                  <svg className="animate-spin w-6 h-6 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  </svg>
+                )}
+                <span className="text-[10px] text-white font-bold mt-1">{avatarUploading ? "Mengupload..." : "Ganti Foto"}</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/jpg,image/gif"
+                  className="hidden"
+                  disabled={avatarUploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleAvatarUpload(file);
+                  }}
+                />
+              </label>
             </div>
             <h3 className="text-lg font-bold text-courier-textprimary">
               {fullName}
             </h3>
-            <p className="text-sm text-courier-textsecondary mb-6">
+            <p className="text-sm text-courier-textsecondary mb-2">
               {companyName || "Mitra Logistik"}
             </p>
-
-            <div className="w-full text-left">
-              <label className="block text-[10px] font-bold text-courier-textsecondary mb-1">
-                URL Foto Profil
-              </label>
-              <input
-                type="text"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="https://example.com/foto.png"
-                className="w-full px-3 py-1.5 bg-courier-surfacewhite border border-courier-hairline rounded-lg text-xs focus:outline-none focus:border-courier-primary text-courier-textprimary"
-              />
-            </div>
+            <p className="text-[10px] text-courier-textsecondary">Klik foto untuk mengubah</p>
           </div>
 
           {/* Right Column: Settings Forms & Security */}
