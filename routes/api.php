@@ -18,6 +18,16 @@ Route::prefix('v1')->group(function () {
     Route::get('/products/{id}/reviews', [\App\Http\Controllers\Api\ReviewController::class, 'index']); // Ulasan produk
     Route::get('/categories', [\App\Http\Controllers\Api\CategoryController::class, 'index']);
     Route::get('/sellers/{id}', [ProductController::class, 'sellerProfile']);
+
+    // Kontak Admin (Public - untuk redirect WA kurir)
+    Route::get('/contact', function () {
+        $admin = \App\Models\User::where('role', 'admin')->first();
+        $phone = $admin?->phone ?? null;
+        return response()->json([
+            'success' => true,
+            'data' => ['phone' => $phone]
+        ]);
+    });
    
     // Edukasi Artikel (Public)
     Route::get('/articles', [\App\Http\Controllers\Api\ArticleController::class, 'index']);

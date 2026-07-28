@@ -54,6 +54,41 @@ class AdminController extends Controller
      */
     public function getShipments(): JsonResponse
     {
+        // 1. Otomatis tugaskan kurir terdekat untuk pesanan logistik yang belum punya kurir
+        $logistikOrders = Order::with(['peternak.peternakProfile'])
+            ->where('metode_pengiriman', 'logistik')
+            ->whereIn('status', ['dikonfirmasi', 'dikirim', 'selesai'])
+            ->get();
+
+        foreach ($logistikOrders as $ord) {
+            $shipment = Shipment::where('order_id', $ord->id)->first();
+            if (!$shipment) {
+                $closestCourier = \App\Services\ShipmentService::findClosestCourierForOrder($ord);
+                if ($closestCourier) {
+                    Shipment::create([
+                        'id'                  => \Illuminate\Support\Str::uuid()->toString(),
+                        'order_id'            => $ord->id,
+                        'logistik_profile_id' => $closestCourier->id,
+                        'status'              => 'dijadwalkan',
+                    ]);
+                    if ($ord->status === 'dikonfirmasi') {
+                        $ord->update(['status' => 'dikirim']);
+                    }
+                }
+            } else if (!$shipment->logistik_profile_id) {
+                $closestCourier = \App\Services\ShipmentService::findClosestCourierForOrder($ord);
+                if ($closestCourier) {
+                    $shipment->update([
+                        'logistik_profile_id' => $closestCourier->id,
+                        'status'              => 'dijadwalkan',
+                    ]);
+                    if ($ord->status === 'dikonfirmasi') {
+                        $ord->update(['status' => 'dikirim']);
+                    }
+                }
+            }
+        }
+
         // Ambil order beserta shipment, user (buyer), peternak, dan detail items
         $orders = Order::with(['user', 'peternak.peternakProfile', 'items.product'])
             ->orderBy('created_at', 'desc')
