@@ -92,10 +92,9 @@ class ReviewController extends Controller
             $avg = Review::where('product_id', $productId)->avg('rating') ?? 0;
             $count = Review::where('product_id', $productId)->count();
 
-            $product->update([
-                'rating_avg'   => round((float)$avg, 2),
-                'review_count' => $count,
-            ]);
+            $product->rating_avg = round((float)$avg, 1);
+            $product->review_count = $count;
+            $product->save();
         }
 
         return response()->json([

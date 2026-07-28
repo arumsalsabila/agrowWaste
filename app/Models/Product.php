@@ -38,10 +38,14 @@ class Product extends Model implements HasMedia
         'kecamatan',
         'status',
         'rejection_reason',
+        'rating_avg',
+        'review_count',
     ];
 
     protected $casts = [
         'nutrisi' => 'array',
+        'rating_avg' => 'float',
+        'review_count' => 'integer',
     ];
 
     protected $appends = ['image_url', 'image_urls'];
@@ -72,6 +76,23 @@ class Product extends Model implements HasMedia
             ->toArray();
     }
 
+    public function getRatingAvgAttribute($value): float
+    {
+        if ($value !== null && (float)$value > 0) {
+            return (float) $value;
+        }
+        $avg = $this->reviews()->avg('rating');
+        return $avg ? round((float)$avg, 1) : 0.0;
+    }
+
+    public function getReviewCountAttribute($value): int
+    {
+        if ($value !== null && (int)$value > 0) {
+            return (int) $value;
+        }
+        return $this->reviews()->count();
+    }
+
     // ── Relasi ──────────────────────────────────────────────────────────────
 
     public function peternakProfile(): BelongsTo
@@ -82,5 +103,10 @@ class Product extends Model implements HasMedia
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function reviews(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Review::class);
     }
 }
