@@ -794,7 +794,7 @@ export default function ShipmentsPage() {
                         if (!buyerPhone) return null;
                         const cleaned = buyerPhone.replace(/\D/g, "");
                         const waNumber = cleaned.startsWith("0") ? "62" + cleaned.slice(1) : cleaned.startsWith("62") ? cleaned : "62" + cleaned;
-                        const waMsg = encodeURIComponent(`Halo ${buyerName}, saya kurir AgroWaste yang bertugas mengantarkan pesanan Anda (No. ${orderNum}). Ada yang bisa saya bantu?`);
+                        const waMsg = encodeURIComponent(`Halo ${buyerName}, saya kurir AgroWaste yang bertugas mengantarkan pesanan Anda (No. ${orderNum}). Paket menuju tujuan`);
                         return (
                           <a
                             href={`https://wa.me/${waNumber}?text=${waMsg}`}
