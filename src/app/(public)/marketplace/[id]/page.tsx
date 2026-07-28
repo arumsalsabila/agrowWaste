@@ -28,10 +28,16 @@ interface Product {
   category?: { name: string };
   nutrisi?: [string, string][] | null;
   peternak_profile?: {
+    id?: string;
     nama_kandang?: string;
     nama_peternakan?: string;
-    badge: string;
-    user_id: string;
+    badge?: string;
+    user_id?: string;
+    user?: {
+      id?: string;
+      name?: string;
+      avatar_url?: string | null;
+    };
   };
 }
 
@@ -667,19 +673,30 @@ export default function ProductDetail() {
 
                 {/* Farmer Info */}
                 <Link
-                  href={`/sellers/${product.peternak_profile?.user_id}`}
+                  href={`/sellers/${product.peternak_profile?.user_id || product.peternak_profile?.id}`}
                   className="flex items-center justify-between border border-[#E8E0D5] rounded-xl p-3 mb-6 hover:border-[#009A44] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#2C3930] flex items-center justify-center text-white text-sm font-bold">
-                      {(
-                        product.peternak_profile?.nama_kandang ||
-                        product.peternak_profile?.nama_peternakan ||
-                        "P"
-                      )
-                        .charAt(0)
-                        .toUpperCase()}
-                    </div>
+                    {product.peternak_profile?.user?.avatar_url ? (
+                      <img
+                        src={product.peternak_profile.user.avatar_url}
+                        alt={product.peternak_profile?.nama_kandang || "Peternak"}
+                        className="w-10 h-10 rounded-full object-cover border border-[#E8E0D5]"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#2C3930] flex items-center justify-center text-white text-sm font-bold">
+                        {(
+                          product.peternak_profile?.nama_kandang ||
+                          product.peternak_profile?.nama_peternakan ||
+                          "P"
+                        )
+                          .charAt(0)
+                          .toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center gap-1">
                         <span className="text-xs font-bold text-[#111111]">
@@ -748,13 +765,28 @@ export default function ProductDetail() {
                         -
                       </button>
                       <input
-                        type="text"
-                        value={qty}
-                        readOnly
-                        className="w-12 h-8 text-center text-sm font-bold text-[#111111] border-x border-[#E8E0D5]"
+                        type="number"
+                        min={minQty}
+                        max={parseFloat(product.stock_kg) || 999999}
+                        value={qty || ""}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (isNaN(val)) {
+                            setQty(0);
+                          } else {
+                            const maxStock = parseFloat(product.stock_kg) || 999999;
+                            setQty(Math.min(maxStock, Math.max(0, val)));
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!qty || qty < minQty) {
+                            setQty(minQty);
+                          }
+                        }}
+                        className="w-16 h-8 text-center text-sm font-bold text-[#111111] border-x border-[#E8E0D5] focus:outline-none focus:ring-1 focus:ring-[#009A44] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <button
-                        onClick={() => setQty((q) => q + step)}
+                        onClick={() => setQty((q) => Math.min(parseFloat(product.stock_kg) || 999999, q + step))}
                         className="w-8 h-8 flex items-center justify-center text-[#555555] hover:bg-[#F5F1E8] transition-colors"
                       >
                         +

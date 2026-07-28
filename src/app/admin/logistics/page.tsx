@@ -19,6 +19,7 @@ interface Courier {
     name: string;
     email: string;
     phone?: string | null;
+    avatar_url?: string | null;
   };
 }
 
@@ -592,9 +593,20 @@ export default function AdminLogistics() {
                             </div>
                           ) : (
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-admin-primary-light text-admin-primary flex items-center justify-center text-sm font-bold">
-                                {courierName.substring(0, 2).toUpperCase()}
-                              </div>
+                              {orderShipment?.logistik_profile?.user?.avatar_url ? (
+                                <img
+                                  src={orderShipment.logistik_profile.user.avatar_url}
+                                  alt={courierName}
+                                  className="w-10 h-10 rounded-full object-cover border border-admin-hairline group-hover:border-admin-primary transition-colors"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-admin-primary-light text-admin-primary flex items-center justify-center text-sm font-bold">
+                                  {courierName.substring(0, 2).toUpperCase()}
+                                </div>
+                              )}
                               <div>
                                 <div className="text-sm font-bold text-admin-textprimary group-hover:text-admin-primary transition-colors">
                                   {courierName}

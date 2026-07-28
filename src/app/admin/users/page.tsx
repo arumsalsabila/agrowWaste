@@ -9,6 +9,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  avatar_url?: string | null;
   is_suspended: boolean | number;
   created_at: string;
   peternak_profile?: { nama_peternakan: string; badge?: string } | null;
@@ -399,9 +400,20 @@ export default function AdminUserManagement() {
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full border border-admin-hairline bg-admin-primary-light text-admin-primary flex items-center justify-center font-bold group-hover:border-admin-primary transition-colors">
-                            {initials}
-                          </div>
+                          {user.avatar_url ? (
+                            <img
+                              src={user.avatar_url}
+                              alt={user.name}
+                              className="w-10 h-10 rounded-full object-cover border border-admin-hairline group-hover:border-admin-primary transition-colors"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full border border-admin-hairline bg-admin-primary-light text-admin-primary flex items-center justify-center font-bold group-hover:border-admin-primary transition-colors">
+                              {initials}
+                            </div>
+                          )}
                           <div>
                             <div className="font-bold text-admin-textprimary group-hover:text-admin-primary transition-colors">
                               {user.name}

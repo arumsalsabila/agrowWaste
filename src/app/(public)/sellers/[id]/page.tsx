@@ -20,6 +20,7 @@ import EarthyCard from "@/components/public/EarthyCard";
 
 interface SellerProfile {
   id: string;
+  nama_kandang?: string | null;
   nama_peternakan: string;
   deskripsi: string | null;
   provinsi: string;
@@ -200,15 +201,23 @@ export default function SellerProfilePage() {
 
           <div className="flex flex-col md:flex-row gap-8 items-start md:items-center">
             {/* Avatar */}
-            <div className="w-24 h-24 rounded-full bg-land-accent flex items-center justify-center text-white text-3xl font-bold border-4 border-white/15 shadow-xl shrink-0">
-              {initial}
-            </div>
+            {user.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={profile.nama_kandang || profile.nama_peternakan || user.name}
+                className="w-24 h-24 rounded-full object-cover border-4 border-white/15 shadow-xl shrink-0"
+              />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-land-accent flex items-center justify-center text-white text-3xl font-bold border-4 border-white/15 shadow-xl shrink-0">
+                {initial}
+              </div>
+            )}
 
             {/* Seller main info */}
             <div className="flex-1 space-y-3">
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="font-land-heading text-3xl md:text-4xl font-bold tracking-tight">
-                  {profile.nama_peternakan || "Peternakan Organik"}
+                  {profile.nama_kandang || profile.nama_peternakan || user.name || "Peternakan Organik"}
                 </h1>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider bg-land-accent/20 text-emerald-300 border border-emerald-500/20">
                   <ShieldCheck className="w-3.5 h-3.5" />

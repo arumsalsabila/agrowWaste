@@ -114,6 +114,42 @@ export default function CartContent() {
     }
   };
 
+  const handleDirectQtyChange = async (item: CartItem, newQty: number) => {
+    const minQty = Math.max(1, parseFloat(item.product.min_order_kg));
+    const finalQty = Math.max(minQty, newQty);
+    const current = parseFloat(item.quantity_kg);
+    if (finalQty === current) return;
+
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id ? { ...i, quantity_kg: String(finalQty) } : i,
+      ),
+    );
+    setUpdating(item.id);
+
+    try {
+      const res = await apiFetch(`/cart-items/${item.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ quantity_kg: finalQty }),
+      });
+      if (!res.ok) {
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id === item.id ? { ...i, quantity_kg: String(current) } : i,
+          ),
+        );
+      }
+    } catch {
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === item.id ? { ...i, quantity_kg: String(current) } : i,
+        ),
+      );
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     setItems((prev) => prev.filter((i) => i.id !== id));
     window.dispatchEvent(new Event("cart-change"));
@@ -331,21 +367,48 @@ export default function CartContent() {
 
                       {/* Controls row */}
                       <div className="flex flex-wrap justify-between items-center pt-3 mt-4 border-t border-[#E8E0D5]/40 gap-3">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleQtyChange(item, -1)}
                             disabled={updating === item.id || qty <= step}
-                            className="w-8 h-8 rounded-full border border-[#E8E0D5] flex items-center justify-center text-land-ink hover:bg-land-warm hover:border-land-clay transition-all duration-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="w-8 h-8 rounded-full border border-[#E8E0D5] flex items-center justify-center text-land-ink hover:bg-land-warm hover:border-land-clay transition-all duration-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                           >
                             -
                           </button>
-                          <span className="w-20 text-center text-sm font-bold text-land-ink font-tabular">
-                            {qty} {item.product.unit}
-                          </span>
+                          <div className="flex items-center border border-[#E8E0D5] rounded-xl overflow-hidden bg-white px-2 py-1">
+                            <input
+                              type="number"
+                              min={step}
+                              value={qty || ""}
+                              disabled={updating === item.id}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                const nextVal = isNaN(val) ? 0 : Math.max(0, val);
+                                setItems((prev) =>
+                                  prev.map((i) =>
+                                    i.id === item.id ? { ...i, quantity_kg: String(nextVal) } : i
+                                  )
+                                );
+                              }}
+                              onBlur={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                handleDirectQtyChange(item, isNaN(val) ? step : val);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="w-16 text-center text-sm font-bold text-land-ink focus:outline-none font-tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <span className="text-xs font-bold text-land-muted pr-1">
+                              {item.product.unit}
+                            </span>
+                          </div>
                           <button
                             onClick={() => handleQtyChange(item, 1)}
                             disabled={updating === item.id}
-                            className="w-8 h-8 rounded-full border border-[#E8E0D5] flex items-center justify-center text-land-ink hover:bg-land-warm hover:border-land-clay transition-all duration-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="w-8 h-8 rounded-full border border-[#E8E0D5] flex items-center justify-center text-land-ink hover:bg-land-warm hover:border-land-clay transition-all duration-200 font-bold disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                           >
                             +
                           </button>

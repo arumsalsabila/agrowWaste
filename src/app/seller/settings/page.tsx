@@ -257,7 +257,7 @@ export default function SettingsPage() {
     try {
       const token = getToken();
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1/profile/avatar`,
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/profile/avatar`,
         {
           method: "POST",
           headers: token ? { Authorization: `Bearer ${token}` } : {},

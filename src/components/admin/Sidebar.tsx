@@ -15,8 +15,20 @@ export const Sidebar = ({ mobileOpen = false, onClose }: SidebarProps) => {
   const pathname = usePathname();
   const router = useRouter();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [adminName, setAdminName] = useState("Administrator Utama");
+  const [adminAvatar, setAdminAvatar] = useState<string | null>(null);
 
   useEffect(() => {
+    apiFetch("/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json?.success && json?.data) {
+          if (json.data.name) setAdminName(json.data.name);
+          if (json.data.avatar_url) setAdminAvatar(json.data.avatar_url);
+        }
+      })
+      .catch(() => {});
+
     apiFetch("/admin/products")
       .then((res) => (res.ok ? res.json() : { data: [] }))
       .then((json) => {
@@ -116,15 +128,23 @@ export const Sidebar = ({ mobileOpen = false, onClose }: SidebarProps) => {
       {/* Profile */}
       <div className="px-6 py-6 border-b border-admin-hairline/50 mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-admin-primary text-white flex items-center justify-center font-bold shadow-sm">
-            A
-          </div>
+          {adminAvatar ? (
+            <img
+              src={adminAvatar}
+              alt="Admin Avatar"
+              className="w-10 h-10 rounded-full object-cover border border-admin-hairline shadow-sm"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-admin-primary text-white flex items-center justify-center font-bold shadow-sm">
+              {adminName.charAt(0).toUpperCase()}
+            </div>
+          )}
           <div>
             <span className="text-[10px] text-admin-primary font-bold uppercase tracking-wider block leading-tight">
               Panel Sistem
             </span>
-            <h2 className="text-xs font-bold text-admin-textprimary leading-tight mt-0.5">
-              Administrator Utama
+            <h2 className="text-xs font-bold text-admin-textprimary leading-tight mt-0.5 truncate max-w-[130px]">
+              {adminName}
             </h2>
           </div>
         </div>

@@ -394,14 +394,16 @@ export default function AdminAnalytics() {
                         10,
                       );
                       const color =
-                        cat.category_name === "limbah_cair"
+                        cat.category_name === "limbah_cair" || cat.category_name === "limbah-cair"
                           ? "bg-blue-500 hover:bg-blue-600"
+                          : cat.category_name === "limbah_olahan" || cat.category_name === "limbah-olahan"
+                          ? "bg-amber-500 hover:bg-amber-600"
                           : "bg-admin-primary hover:bg-[#009A44]";
 
                       return (
                         <div
                           key={cat.category_name}
-                          className="flex flex-col items-center w-[20%] h-full justify-end"
+                          className="flex flex-col items-center w-[25%] h-full justify-end"
                         >
                           {/* Bar Pillar with Hover Tooltip */}
                           <div
@@ -428,7 +430,7 @@ export default function AdminAnalytics() {
                 {data.category_distribution.map((cat) => (
                   <span
                     key={cat.category_name}
-                    className="truncate text-center w-[20%]"
+                    className="truncate text-center w-[25%]"
                   >
                     {getCategoryLabel(cat.category_name)}
                   </span>
@@ -441,12 +443,16 @@ export default function AdminAnalytics() {
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-admin-primary" />
               <span className="text-admin-textsecondary">
-                Limbah Padat & Lainnya
+                Kotoran Padat
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-400" />
+              <div className="w-3 h-3 rounded-full bg-blue-500" />
               <span className="text-admin-textsecondary">Limbah Cair</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-amber-500" />
+              <span className="text-admin-textsecondary">Limbah Olahan</span>
             </div>
           </div>
         </div>
