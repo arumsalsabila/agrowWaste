@@ -28,7 +28,7 @@ class ProductController extends Controller
     public function index(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
     {
         // Mulai query, pastikan hanya mengambil produk yang statusnya 'aktif'
-        $query = \App\Models\Product::with(['peternakProfile', 'category', 'media'])
+        $query = \App\Models\Product::with(['peternakProfile.user', 'category', 'media'])
             ->where('status', 'aktif');
 
         // 1. Fitur Search (Berdasarkan nama produk)
@@ -109,7 +109,7 @@ class ProductController extends Controller
      */
     public function show($id): JsonResponse
     {
-        $product = \App\Models\Product::with(['category', 'peternakProfile', 'media'])->find($id);
+        $product = \App\Models\Product::with(['category', 'peternakProfile.user', 'media'])->find($id);
 
         if (!$product) {
             return response()->json(['success' => false, 'message' => 'Produk tidak ditemukan.'], 404);
@@ -268,6 +268,14 @@ class ProductController extends Controller
         $user = \App\Models\User::with('peternakProfile')->find($id);
 
         if (!$user || $user->role !== 'peternak' || !$user->peternakProfile) {
+            $peternakProfile = \App\Models\PeternakProfile::with('user')->find($id);
+            if ($peternakProfile && $peternakProfile->user) {
+                $user = $peternakProfile->user;
+                $user->setRelation('peternakProfile', $peternakProfile);
+            }
+        }
+
+        if (!$user || !$user->peternakProfile) {
             return response()->json([
                 'success' => false,
                 'message' => 'Profil peternak tidak ditemukan.'

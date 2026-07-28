@@ -180,15 +180,25 @@ class AdminController extends Controller
         $totalCo2 = (float) ImpactLog::sum('co2eq_reduced_kg');
         $activeSellers = User::where('role', 'peternak')->count();
 
-        // Distribusi limbah berdasarkan kategori
-        $categoryDist = DB::table('order_items')
+        // Distribusi limbah berdasarkan 3 kategori utama
+        $allCategories = DB::table('categories')->get();
+        $soldDist = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->join('categories', 'products.category_id', '=', 'categories.id')
-            ->where('orders.status', 'selesai')
-            ->select('categories.name as category_name', DB::raw('SUM(order_items.quantity_kg) as total'))
-            ->groupBy('categories.name')
-            ->get();
+            ->whereIn('orders.status', ['dikonfirmasi', 'dikirim', 'selesai'])
+            ->select('categories.id', 'categories.name as category_name', DB::raw('SUM(order_items.quantity_kg) as total'))
+            ->groupBy('categories.id', 'categories.name')
+            ->get()
+            ->keyBy('category_name');
+
+        $categoryDist = $allCategories->map(function ($cat) use ($soldDist) {
+            $found = $soldDist->get($cat->name);
+            return [
+                'category_name' => $cat->name,
+                'total' => $found ? (float)$found->total : 0,
+            ];
+        })->values();
 
         // Distribusi regional (Jawa Barat, Jawa Tengah, Jawa Timur, dll)
         $regionalDist = DB::table('order_items')

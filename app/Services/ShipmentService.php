@@ -41,21 +41,32 @@ class ShipmentService
         $logistikProfileId = $logistikProfile ? $logistikProfile->id : null;
 
         // 2. Hubungkan semua pesanan ber-metode logistik ke daftar pengiriman kurir
-        $logistikOrders = \App\Models\Order::where('metode_pengiriman', 'logistik')
+        $logistikOrders = \App\Models\Order::with(['peternak.peternakProfile'])
+            ->where('metode_pengiriman', 'logistik')
             ->whereIn('status', ['dikonfirmasi', 'dikirim', 'selesai'])
             ->get();
 
         foreach ($logistikOrders as $ord) {
             $shipment = \App\Models\Shipment::where('order_id', $ord->id)->first();
             if (!$shipment) {
+                $closestCourier = self::findClosestCourierForOrder($ord);
                 \App\Models\Shipment::create([
                     'id'                  => \Illuminate\Support\Str::uuid()->toString(),
                     'order_id'            => $ord->id,
-                    'logistik_profile_id' => $logistikProfileId,
+                    'logistik_profile_id' => $closestCourier ? $closestCourier->id : $logistikProfileId,
                     'status'              => $ord->status === 'dikirim' ? 'sedang_berjalan' : ($ord->status === 'selesai' ? 'selesai' : 'dijadwalkan'),
                 ]);
-            } else if ($logistikProfileId && !$shipment->logistik_profile_id) {
-                $shipment->update(['logistik_profile_id' => $logistikProfileId]);
+                if ($ord->status === 'dikonfirmasi') {
+                    $ord->update(['status' => 'dikirim']);
+                }
+            } else if (!$shipment->logistik_profile_id) {
+                $closestCourier = self::findClosestCourierForOrder($ord);
+                if ($closestCourier) {
+                    $shipment->update(['logistik_profile_id' => $closestCourier->id]);
+                    if ($ord->status === 'dikonfirmasi') {
+                        $ord->update(['status' => 'dikirim']);
+                    }
+                }
             }
         }
 
@@ -114,5 +125,61 @@ class ShipmentService
         }
 
         return $shipment;
+    }
+
+    /**
+     * Cari kurir logistik terdekat berdasarkan koordinat GPS / wilayah
+     */
+    public static function findClosestCourierForOrder($order)
+    {
+        $couriers = \App\Models\LogistikProfile::all();
+        if ($couriers->isEmpty()) {
+            return null;
+        }
+
+        $sellerLat = $order->peternak?->peternakProfile?->lat ?? null;
+        $sellerLng = $order->peternak?->peternakProfile?->lng ?? null;
+        $sellerKab = strtolower((string)($order->peternak?->peternakProfile?->kabupaten ?? ''));
+
+        if (!is_null($sellerLat) && !is_null($sellerLng)) {
+            $nLat1 = (float)$sellerLat;
+            $nLng1 = (float)$sellerLng;
+
+            $bestCourier = null;
+            $minDistance = null;
+
+            foreach ($couriers as $c) {
+                if (!is_null($c->lat) && !is_null($c->lng)) {
+                    $nLat2 = (float)$c->lat;
+                    $nLng2 = (float)$c->lng;
+
+                    $dLat = deg2rad($nLat2 - $nLat1);
+                    $dLng = deg2rad($nLng2 - $nLng1);
+                    $a = sin($dLat / 2) * sin($dLat / 2) +
+                         cos(deg2rad($nLat1)) * cos(deg2rad($nLat2)) *
+                         sin($dLng / 2) * sin($dLng / 2);
+                    $dist = 6371 * 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+                    if (is_null($minDistance) || $dist < $minDistance) {
+                        $minDistance = $dist;
+                        $bestCourier = $c;
+                    }
+                }
+            }
+
+            if ($bestCourier) {
+                return $bestCourier;
+            }
+        }
+
+        if ($sellerKab) {
+            foreach ($couriers as $c) {
+                if ($c->kabupaten && str_contains(strtolower($c->kabupaten), $sellerKab)) {
+                    return $c;
+                }
+            }
+        }
+
+        return $couriers->first();
     }
 }
