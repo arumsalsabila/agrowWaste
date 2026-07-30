@@ -23,12 +23,124 @@ function formatDateTime(dateStr?: string | null) {
   );
 }
 
+interface TrackingOrderUser {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  phone?: string | null;
+  avatar_url?: string | null;
+}
+
+interface TrackingPeternakProfile {
+  id: string;
+  user_id: string;
+  nama_kandang?: string;
+  nama_peternakan?: string;
+  jenis_ternak?: string[];
+  kapasitas_ternak?: number | null;
+  deskripsi?: string | null;
+  provinsi?: string;
+  kabupaten?: string;
+  kecamatan?: string;
+  lat?: number | string | null;
+  lng?: number | string | null;
+  total_sold_kg?: number | string;
+  badge?: string;
+  bank_account?: string | null;
+}
+
+interface TrackingLogistikProfile {
+  id: string;
+  user_id: string;
+  company_name?: string | null;
+  vehicle_plate?: string | null;
+  plat_nomor?: string | null;
+  vehicle_type?: string | null;
+  lat?: number | string | null;
+  lng?: number | string | null;
+  alamat_posisi?: string | null;
+  kecamatan?: string | null;
+  kabupaten?: string | null;
+  provinsi?: string | null;
+  user?: TrackingOrderUser;
+}
+
+interface TrackingShipment {
+  id: string;
+  order_id: string;
+  logistik_profile_id: string;
+  status: string;
+  tracking_notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  logistik_profile?: TrackingLogistikProfile;
+}
+
+interface TrackingOrderProduct {
+  id: string;
+  name: string;
+  image_url?: string | null;
+}
+
+interface TrackingOrderItem {
+  id: string;
+  order_id: string;
+  product_id: string;
+  quantity_kg: number | string;
+  price_per_kg: number | string;
+  product?: TrackingOrderProduct;
+}
+
+interface TrackingReview {
+  id: string;
+  user_id: string;
+  product_id: string;
+  order_id?: string | null;
+  rating: number;
+  comment: string | null;
+  created_at?: string;
+  updated_at?: string;
+  user?: { id: string; name: string; email: string };
+}
+
+interface TrackingOrder {
+  id: string;
+  order_number?: string | null;
+  user_id?: string | null;
+  peternak_id?: string | null;
+  buyer_profile_id?: string | null;
+  product_id?: string | null;
+  quantity_kg?: number | string;
+  total_price: number | string;
+  delivery_address?: string | null;
+  status: string;
+  rejection_reason?: string | null;
+  metode_pengiriman?: string | null;
+  metode_pembayaran?: string | null;
+  alamat_pengiriman?: string | null;
+  created_at: string;
+  updated_at?: string;
+  items?: TrackingOrderItem[];
+  product?: TrackingOrderProduct | null;
+  reviews?: TrackingReview[];
+  peternak?: (TrackingOrderUser & {
+    peternak_profile?: TrackingPeternakProfile | null;
+  }) | null;
+  shipment?: TrackingShipment | null;
+  payment?: {
+    id: string;
+    status?: string;
+    proof?: { id: string; file_url?: string } | null;
+  } | null;
+}
+
 export default function LacakPesananPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const rawId = params?.id || "";
 
-  const [order, setOrder] = useState<any>(null);
+  const [order, setOrder] = useState<TrackingOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

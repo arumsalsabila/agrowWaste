@@ -16,7 +16,9 @@ import {
   Leaf,
   AlertCircle,
   Star,
+  Download,
 } from "lucide-react";
+import { ReviewItem } from "@/types/order";
 import { apiFetch, getProductImageUrl } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 
@@ -59,7 +61,7 @@ interface OrderDetail {
   items?: OrderItemDetail[];
   product?: LegacyProduct | null;
   shipment?: { status: string } | null;
-  reviews?: any[];
+  reviews?: ReviewItem[];
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */

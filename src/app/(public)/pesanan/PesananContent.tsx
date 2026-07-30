@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { apiFetch, getProductImageUrl } from "@/lib/api";
 import { getToken, logout } from "@/lib/auth";
+import { ReviewItem } from "@/types/order";
 
 interface OrderProduct {
   id: string;
@@ -43,7 +44,7 @@ interface Order {
   created_at: string;
   product?: OrderProduct;
   items?: OrderItem[];
-  reviews?: any[];
+  reviews?: ReviewItem[];
   shipment?: { status: string } | null;
 }
 

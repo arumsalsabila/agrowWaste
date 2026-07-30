@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import { MapLibreMap, MapLibreMarker, MapLibreWindow } from "@/types/maplibre-gl";
 
 export interface MapTrackingProps {
   startCoords: [number, number]; // [longitude, latitude] of Store
@@ -18,10 +18,10 @@ export default function MapTracking({
 }: MapTrackingProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maplibreLoaded, setMaplibreLoaded] = useState(false);
-  const mapInstanceRef = useRef<any>(null);
-  const startMarkerRef = useRef<any>(null);
-  const endMarkerRef = useRef<any>(null);
-  const courierMarkerRef = useRef<any>(null);
+  const mapInstanceRef = useRef<MapLibreMap | null>(null);
+  const startMarkerRef = useRef<MapLibreMarker | null>(null);
+  const endMarkerRef = useRef<MapLibreMarker | null>(null);
+  const courierMarkerRef = useRef<MapLibreMarker | null>(null);
 
   // lazy-load MapLibre GL from CDN
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function MapTracking({
       document.body.appendChild(script);
     } else {
       const checkInterval = setInterval(() => {
-        if ((window as any).maplibregl) {
+        if ((window as unknown as MapLibreWindow).maplibregl) {
           setMaplibreLoaded(true);
           clearInterval(checkInterval);
         }
@@ -61,7 +61,7 @@ export default function MapTracking({
     const centerLng = (startCoords[0] + endCoords[0]) / 2;
     const centerLat = (startCoords[1] + endCoords[1]) / 2;
 
-    const map = new (window as any).maplibregl.Map({
+    const map = new (window as unknown as MapLibreWindow).maplibregl!.Map({
       container: containerRef.current,
       style: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
       center: [centerLng, centerLat],
@@ -72,7 +72,7 @@ export default function MapTracking({
     });
 
     map.addControl(
-      new (window as any).maplibregl.NavigationControl(),
+      new (window as unknown as MapLibreWindow).maplibregl!.NavigationControl(),
       "top-right",
     );
 
@@ -149,7 +149,7 @@ export default function MapTracking({
       <span style="font-family: system-ui, -apple-system, sans-serif; font-size: 13px; font-weight: 700; color: #1E293B; margin-bottom: 2px; text-shadow: 0 1px 2px rgba(255,255,255,0.9), 0 0 4px rgba(255,255,255,0.4);">Store</span>
       <div style="width: 14px; height: 14px; border-radius: 50%; background-color: #00C282; border: 2.5px solid #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.25);"></div>
     `;
-    startMarkerRef.current = new (window as any).maplibregl.Marker({
+    startMarkerRef.current = new (window as unknown as MapLibreWindow).maplibregl!.Marker({
       element: startEl,
       anchor: "bottom",
     })
@@ -169,7 +169,7 @@ export default function MapTracking({
         </svg>
       </div>
     `;
-    endMarkerRef.current = new (window as any).maplibregl.Marker({
+    endMarkerRef.current = new (window as unknown as MapLibreWindow).maplibregl!.Marker({
       element: endEl,
       anchor: "bottom",
     })
@@ -185,7 +185,7 @@ export default function MapTracking({
         <path d="M19 8h-2V5c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v12h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm9-8v3H3V5h12v5zm3 8c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm1.5-6h-3.5v-3h1.5l2 3z"/>
       </svg>
     `;
-    courierMarkerRef.current = new (window as any).maplibregl.Marker({
+    courierMarkerRef.current = new (window as unknown as MapLibreWindow).maplibregl!.Marker({
       element: courierEl,
       anchor: "center",
     })
@@ -193,7 +193,7 @@ export default function MapTracking({
       .addTo(map);
 
     // fit bounds to both endpoints
-    const bounds = new (window as any).maplibregl.LngLatBounds()
+    const bounds = new (window as unknown as MapLibreWindow).maplibregl!.LngLatBounds()
       .extend(startCoords)
       .extend(endCoords);
 

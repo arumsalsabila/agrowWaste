@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import { MapLibreMap, MapLibreMarker, MapLibreWindow } from "@/types/maplibre-gl";
 
 export interface SellerInfo {
   userId: string;
@@ -30,9 +30,9 @@ export default function MapCn({
 }: MapCnProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [maplibreLoaded, setMaplibreLoaded] = useState(false);
-  const mapInstanceRef = useRef<any>(null);
-  const userMarkerRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
+  const mapInstanceRef = useRef<MapLibreMap | null>(null);
+  const userMarkerRef = useRef<MapLibreMarker | null>(null);
+  const markersRef = useRef<MapLibreMarker[]>([]);
 
   // lazy-load MapLibre GL from CDN
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function MapCn({
     } else {
       // script already injected — poll until maplibregl lands on window
       const checkInterval = setInterval(() => {
-        if ((window as any).maplibregl) {
+        if ((window as unknown as MapLibreWindow).maplibregl) {
           setMaplibreLoaded(true);
           clearInterval(checkInterval);
         }
@@ -75,7 +75,7 @@ export default function MapCn({
       userCoords ||
       (sellers.length > 0 ? [sellers[0].lng, sellers[0].lat] : defaultCenter);
 
-    const map = new (window as any).maplibregl.Map({
+    const map = new (window as unknown as MapLibreWindow).maplibregl!.Map({
       container: containerRef.current,
       style: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
       center: initialCenter,
@@ -86,7 +86,7 @@ export default function MapCn({
     });
 
     map.addControl(
-      new (window as any).maplibregl.NavigationControl(),
+      new (window as unknown as MapLibreWindow).maplibregl!.NavigationControl(),
       "top-right",
     );
 
@@ -116,13 +116,13 @@ export default function MapCn({
       el.className =
         "w-6 h-6 rounded-full bg-blue-500 border-2 border-white shadow-[0_0_12px_rgba(59,130,246,0.8)] animate-pulse z-20";
 
-      const popup = new (window as any).maplibregl.Popup({
+      const popup = new (window as unknown as MapLibreWindow).maplibregl!.Popup({
         offset: 10,
       }).setHTML(
         `<div style="font-family: 'Nunito Sans', sans-serif; padding: 4px; font-weight: 700; color: #2C3930; font-size: 13px;">Lokasi Anda</div>`,
       );
 
-      userMarkerRef.current = new (window as any).maplibregl.Marker({
+      userMarkerRef.current = new (window as unknown as MapLibreWindow).maplibregl!.Marker({
         element: el,
       })
         .setLngLat(userCoords)
@@ -158,7 +158,7 @@ export default function MapCn({
 
       el.appendChild(innerEl);
 
-      const popup = new (window as any).maplibregl.Popup({ offset: 12 })
+      const popup = new (window as unknown as MapLibreWindow).maplibregl!.Popup({ offset: 12 })
         .setHTML(`
         <div style="font-family: 'Nunito Sans', sans-serif; padding: 4px; color: #2C3930;">
           <h4 style="font-weight: 700; margin: 0 0 4px 0; font-size: 14px;">${s.name}</h4>
@@ -173,7 +173,7 @@ export default function MapCn({
         }
       });
 
-      const marker = new (window as any).maplibregl.Marker({ element: el })
+      const marker = new (window as unknown as MapLibreWindow).maplibregl!.Marker({ element: el })
         .setLngLat([s.lng, s.lat])
         .setPopup(popup)
         .addTo(map);

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { LeafletMap, LeafletMarker, LeafletWindow, LeafletMouseEvent } from "@/types/leaflet";
 import {
   Check,
   MapPin,
@@ -78,8 +79,8 @@ export default function CheckoutContent() {
   const [gisLat, setGisLat] = useState<string | number>("-7.892400");
   const [gisLng, setGisLng] = useState<string | number>("112.656300");
   const [leafletLoaded, setLeafletLoaded] = useState(false);
-  const [mapInstance, setMapInstance] = useState<any>(null);
-  const [markerInstance, setMarkerInstance] = useState<any>(null);
+  const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
+  const [markerInstance, setMarkerInstance] = useState<LeafletMarker | null>(null);
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -104,7 +105,7 @@ export default function CheckoutContent() {
       script.onload = () => setLeafletLoaded(true);
       document.body.appendChild(script);
     } else {
-      if ((window as any).L) {
+      if ((window as unknown as LeafletWindow).L) {
         setLeafletLoaded(true);
       }
     }
@@ -116,7 +117,7 @@ export default function CheckoutContent() {
     const mapElement = document.getElementById("checkout-gis-map");
     if (!mapElement) return;
 
-    const L = (window as any).L;
+    const L = (window as unknown as LeafletWindow).L;
     if (!L) return;
 
     const initLat = Number(gisLat) || -7.8924;
@@ -135,7 +136,7 @@ export default function CheckoutContent() {
       setGisLng(pos.lng.toFixed(6));
     });
 
-    map.on("click", (e: any) => {
+    map.on("click", (e: LeafletMouseEvent) => {
       const coords = e.latlng;
       marker.setLatLng(coords);
       setGisLat(coords.lat.toFixed(6));

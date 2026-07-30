@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
@@ -48,7 +48,7 @@ function statusInfo(isSuspended: boolean | number) {
       };
 }
 
-export default function AdminUserManagement() {
+function AdminUserManagementContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlRole = searchParams.get("role") || "ALL";
@@ -582,5 +582,13 @@ export default function AdminUserManagement() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminUserManagement() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-admin-semgreen">Memuat data pengguna...</div>}>
+      <AdminUserManagementContent />
+    </Suspense>
   );
 }
