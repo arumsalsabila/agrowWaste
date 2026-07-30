@@ -19,6 +19,19 @@ interface ImpactData {
   total_transactions: number;
 }
 
+interface ProductApiItem {
+  peternak_profile?: {
+    user_id: string;
+    nama_peternakan?: string;
+    lat?: string;
+    lng?: string;
+  };
+  lat?: string;
+  lng?: string;
+  kabupaten?: string;
+  provinsi?: string;
+}
+
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; // Earth radius in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -100,8 +113,7 @@ export default function LandingPage() {
         const list = json.data?.data ?? [];
         const uniqueSellersMap = new Map<string, SellerInfo>();
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        list.forEach((p: any) => {
+        list.forEach((p: ProductApiItem) => {
           const profile = p.peternak_profile;
           if (profile) {
             const lat = parseFloat(profile.lat || p.lat || "0");

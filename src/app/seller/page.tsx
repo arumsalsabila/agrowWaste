@@ -137,9 +137,15 @@ interface Order {
   id: string;
   order_number?: string;
   total_price: string | number;
+  quantity_kg?: string | number;
+  berat_kg?: string | number;
   status: string;
   created_at: string;
-  items?: Array<{ product?: { name: string; image_url?: string } }>;
+  items?: Array<{
+    product?: { name: string; image_url?: string };
+    quantity_kg?: string | number;
+    berat_kg?: string | number;
+  }>;
   product?: { name: string; image_url?: string };
 }
 
@@ -403,9 +409,8 @@ export default function OverviewPage() {
     allOrders,
   );
 
-  const VALID_STATUSES = ["dikonfirmasi", "diproses", "dikirim", "selesai"];
-
   const totalPendapatan = useMemo(() => {
+    const VALID_STATUSES = ["dikonfirmasi", "diproses", "dikirim", "selesai"];
     const valid = allOrders.filter((o) => VALID_STATUSES.includes(o.status));
     if (valid.length > 0) {
       return valid.reduce((acc, o) => acc + Number(o.total_price || 0), 0);
@@ -414,6 +419,7 @@ export default function OverviewPage() {
   }, [allOrders, stats]);
 
   const totalKgTerjual = useMemo(() => {
+    const VALID_STATUSES = ["dikonfirmasi", "diproses", "dikirim", "selesai"];
     const valid = allOrders.filter((o) => VALID_STATUSES.includes(o.status));
     if (valid.length > 0) {
       return valid.reduce((acc, o) => {
@@ -421,11 +427,11 @@ export default function OverviewPage() {
         if (o.items && Array.isArray(o.items)) {
           o.items.forEach((item) => {
             kg += Number(
-              (item as any).quantity_kg || (item as any).berat_kg || 0,
+              item.quantity_kg || item.berat_kg || 0,
             );
           });
-        } else if ((o as any).quantity_kg || (o as any).berat_kg) {
-          kg += Number((o as any).quantity_kg || (o as any).berat_kg || 0);
+        } else if (o.quantity_kg || o.berat_kg) {
+          kg += Number(o.quantity_kg || o.berat_kg || 0);
         }
         return acc + kg;
       }, 0);
