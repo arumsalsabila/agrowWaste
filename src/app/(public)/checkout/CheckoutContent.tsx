@@ -213,7 +213,10 @@ export default function CheckoutContent() {
 
   let sellerLat = -7.9839;
   let sellerLng = 112.6214;
-  const firstPeternakProfile = cartItems[0]?.product?.peternak?.peternak_profile;
+  const firstPeternakProfile =
+    cartItems[0]?.product?.peternak_profile ??
+    (cartItems[0]?.product as any)?.peternakProfile ??
+    cartItems[0]?.product?.peternak?.peternak_profile;
   if (firstPeternakProfile?.lat && firstPeternakProfile?.lng) {
     sellerLat = Number(firstPeternakProfile.lat);
     sellerLng = Number(firstPeternakProfile.lng);
